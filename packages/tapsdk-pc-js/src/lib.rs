@@ -245,8 +245,8 @@ impl TapSdk {
     /// Initialize the SDK
     #[napi(constructor)]
     pub fn new(pub_key: String) -> Result<Self> {
-        let inner = tapsdk_pc::TapSdk::init(&pub_key)
-            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let inner =
+            tapsdk_pc::TapSdk::init(&pub_key).map_err(|e| Error::from_reason(e.to_string()))?;
         Ok(TapSdk { inner: Some(inner) })
     }
 
@@ -266,11 +266,15 @@ impl TapSdk {
     ///
     /// Call this regularly (e.g., in your game loop) to receive events.
     /// Returns an array of event objects with different types based on event_id.
-    #[napi(ts_return_type = "Array<SystemStateChangedEvent | AuthorizeFinishedEvent | GamePlayableStatusChangedEvent | DlcPlayableStatusChangedEvent | CloudSaveListEvent | CloudSaveCreateEvent | CloudSaveDeleteEvent | CloudSaveGetFileEvent | UnknownEvent>")]
+    #[napi(
+        ts_return_type = "Array<SystemStateChangedEvent | AuthorizeFinishedEvent | GamePlayableStatusChangedEvent | DlcPlayableStatusChangedEvent | CloudSaveListEvent | CloudSaveCreateEvent | CloudSaveDeleteEvent | CloudSaveGetFileEvent | UnknownEvent>"
+    )]
     pub fn run_callbacks(&self, env: Env) -> Result<Vec<napi::JsUnknown>> {
-        let inner = self.inner.as_ref()
+        let inner = self
+            .inner
+            .as_ref()
             .ok_or_else(|| Error::from_reason("SDK has been shut down"))?;
-        
+
         let events = inner.run_callbacks();
         let mut result = Vec::with_capacity(events.len());
 
@@ -388,7 +392,9 @@ impl CloudSave {
             extra: request.extra,
             playtime: request.playtime,
             data_file_path: PathBuf::from(request.data_file_path).into_boxed_path(),
-            cover_file_path: request.cover_file_path.map(|p| PathBuf::from(p).into_boxed_path()),
+            cover_file_path: request
+                .cover_file_path
+                .map(|p| PathBuf::from(p).into_boxed_path()),
         };
 
         self.inner
@@ -406,7 +412,9 @@ impl CloudSave {
             extra: request.extra,
             playtime: request.playtime,
             data_file_path: PathBuf::from(request.data_file_path).into_boxed_path(),
-            cover_file_path: request.cover_file_path.map(|p| PathBuf::from(p).into_boxed_path()),
+            cover_file_path: request
+                .cover_file_path
+                .map(|p| PathBuf::from(p).into_boxed_path()),
         };
 
         self.inner
@@ -513,10 +521,7 @@ fn convert_cloud_save_create_event(
     })
 }
 
-fn convert_cloud_save_delete_event(
-    env: Env,
-    data: CloudSaveDeleteData,
-) -> Result<napi::JsUnknown> {
+fn convert_cloud_save_delete_event(env: Env, data: CloudSaveDeleteData) -> Result<napi::JsUnknown> {
     env.to_js_value(&CloudSaveDeleteEvent {
         event_id: event_id::CLOUD_SAVE_DELETE,
         request_id: data.request_id,

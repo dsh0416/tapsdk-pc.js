@@ -217,7 +217,10 @@ mod tests {
     fn test_ownership_check_without_init() {
         // Ownership check should safely return false when SDK not initialized
         let owned = unsafe { TapApps_IsOwned() };
-        assert!(!owned, "IsOwned should return false when SDK not initialized");
+        assert!(
+            !owned,
+            "IsOwned should return false when SDK not initialized"
+        );
     }
 
     #[test]

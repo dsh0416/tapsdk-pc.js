@@ -28,10 +28,7 @@ fn build_windows() {
 
     // Tell cargo to rerun if the headers change
     println!("cargo:rerun-if-changed=wrapper.h");
-    println!(
-        "cargo:rerun-if-changed={}/taptap_api.h",
-        sdk_dir.display()
-    );
+    println!("cargo:rerun-if-changed={}/taptap_api.h", sdk_dir.display());
     println!(
         "cargo:rerun-if-changed={}/taptap_cloudsave.h",
         sdk_dir.display()

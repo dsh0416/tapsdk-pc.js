@@ -15,14 +15,14 @@ pub fn is_initialized() -> bool {
 }
 
 /// Check if the app needs to restart (should be called before init)
-/// 
+///
 /// This function should be called before `TapSdk::init()` to check if the game
-/// was launched directly instead of through TapTap. If it returns `true`, 
+/// was launched directly instead of through TapTap. If it returns `true`,
 /// TapTap will relaunch the game and you should exit immediately.
-/// 
+///
 /// # Arguments
 /// * `client_id` - The client ID from TapTap developer center
-/// 
+///
 /// # Returns
 /// `true` if the app needs to restart (exit immediately), `false` otherwise
 pub fn restart_app_if_necessary(client_id: &str) -> Result<bool> {
@@ -32,7 +32,7 @@ pub fn restart_app_if_necessary(client_id: &str) -> Result<bool> {
 }
 
 /// Main TapTap PC SDK wrapper
-/// 
+///
 /// This struct represents an initialized SDK instance. Only one instance
 /// can exist at a time. When dropped, it will shut down the SDK.
 #[derive(Debug)]
@@ -42,17 +42,17 @@ pub struct TapSdk {
 
 impl TapSdk {
     /// Initialize the TapTap PC SDK
-    /// 
+    ///
     /// # Arguments
     /// * `pub_key` - The public key from TapTap developer center
-    /// 
+    ///
     /// # Returns
     /// A `TapSdk` instance on success, or an error if initialization failed
-    /// 
+    ///
     /// # Example
     /// ```no_run
     /// use tapsdk_pc::TapSdk;
-    /// 
+    ///
     /// let sdk = TapSdk::init("your_public_key_here").expect("Failed to init SDK");
     /// ```
     pub fn init(pub_key: &str) -> Result<Self> {
@@ -73,13 +73,13 @@ impl TapSdk {
 
         if init_result != InitResult::Ok {
             SDK_INITIALIZED.store(false, Ordering::SeqCst);
-            
+
             let error_message = unsafe {
                 CStr::from_ptr(err_msg.as_ptr())
                     .to_string_lossy()
                     .into_owned()
             };
-            
+
             return Err(TapSdkError::InitFailed {
                 result: init_result,
                 message: error_message,
@@ -93,16 +93,14 @@ impl TapSdk {
     }
 
     /// Get the client ID
-    /// 
+    ///
     /// # Returns
     /// The client ID string, or `None` if not available
     pub fn get_client_id(&self) -> Option<String> {
         let mut buffer: [std::os::raw::c_char; 256] = [0; 256];
-        
-        let success = unsafe {
-            tapsdk_pc_sys::TapSDK_GetClientID(buffer.as_mut_ptr())
-        };
-        
+
+        let success = unsafe { tapsdk_pc_sys::TapSDK_GetClientID(buffer.as_mut_ptr()) };
+
         if success {
             let client_id = unsafe {
                 CStr::from_ptr(buffer.as_ptr())
@@ -120,10 +118,10 @@ impl TapSdk {
     }
 
     /// Poll for events from the SDK
-    /// 
+    ///
     /// This should be called regularly (e.g., in your game loop) to process
     /// pending callbacks and receive events.
-    /// 
+    ///
     /// # Returns
     /// A vector of events that have occurred since the last poll
     pub fn run_callbacks(&self) -> Vec<TapEvent> {
@@ -131,7 +129,7 @@ impl TapSdk {
     }
 
     /// Shut down the SDK
-    /// 
+    ///
     /// This is called automatically when the `TapSdk` instance is dropped,
     /// but can be called explicitly if needed.
     pub fn shutdown(self) {
@@ -144,12 +142,12 @@ impl Drop for TapSdk {
     fn drop(&mut self) {
         // Unregister callbacks first
         callback::unregister_callbacks();
-        
+
         // Shut down the SDK
         unsafe {
             tapsdk_pc_sys::TapSDK_Shutdown();
         }
-        
+
         // Mark SDK as not initialized
         SDK_INITIALIZED.store(false, Ordering::SeqCst);
     }

@@ -135,10 +135,7 @@ impl From<u32> for SystemState {
 pub enum TapSdkError {
     /// SDK initialization failed
     #[error("SDK initialization failed: {result:?} - {message}")]
-    InitFailed {
-        result: InitResult,
-        message: String,
-    },
+    InitFailed { result: InitResult, message: String },
 
     /// SDK not initialized
     #[error("SDK not initialized")]
@@ -154,10 +151,7 @@ pub enum TapSdkError {
 
     /// API error returned from the SDK
     #[error("API error ({code}): {message}")]
-    ApiError {
-        code: i64,
-        message: String,
-    },
+    ApiError { code: i64, message: String },
 
     /// Invalid argument provided
     #[error("Invalid argument: {0}")]
@@ -186,14 +180,14 @@ impl TapSdkError {
     }
 
     /// Create an API error from raw SDK error pointer
-    /// 
+    ///
     /// # Safety
     /// The error pointer must be valid and point to a valid TapSDK_Error struct
     pub unsafe fn from_raw_error(error: *const tapsdk_pc_sys::TapSDK_Error) -> Option<Self> {
         if error.is_null() {
             return None;
         }
-        
+
         let err = &*error;
         let message = if err.message.is_null() {
             String::new()
@@ -202,7 +196,7 @@ impl TapSdkError {
                 .to_string_lossy()
                 .into_owned()
         };
-        
+
         Some(TapSdkError::ApiError {
             code: err.code,
             message,

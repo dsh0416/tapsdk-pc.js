@@ -139,37 +139,79 @@ static EVENT_QUEUE: Mutex<VecDeque<TapEvent>> = Mutex::new(VecDeque::new());
 pub fn register_callbacks() {
     unsafe {
         // Register for all event types we care about
-        tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::SYSTEM_STATE_CHANGED, Some(global_callback));
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::SYSTEM_STATE_CHANGED,
+            Some(global_callback),
+        );
         tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::AUTHORIZE_FINISHED, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::GAME_PLAYABLE_STATUS_CHANGED, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::DLC_PLAYABLE_STATUS_CHANGED, Some(global_callback));
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::GAME_PLAYABLE_STATUS_CHANGED,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::DLC_PLAYABLE_STATUS_CHANGED,
+            Some(global_callback),
+        );
         tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::CLOUD_SAVE_LIST, Some(global_callback));
         tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::CLOUD_SAVE_CREATE, Some(global_callback));
         tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::CLOUD_SAVE_UPDATE, Some(global_callback));
         tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::CLOUD_SAVE_DELETE, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::CLOUD_SAVE_GET_DATA, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::CLOUD_SAVE_GET_COVER, Some(global_callback));
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::CLOUD_SAVE_GET_DATA,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::CLOUD_SAVE_GET_COVER,
+            Some(global_callback),
+        );
     }
 }
 
 /// Unregister the global callback handler
 pub fn unregister_callbacks() {
     unsafe {
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::SYSTEM_STATE_CHANGED, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::AUTHORIZE_FINISHED, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::GAME_PLAYABLE_STATUS_CHANGED, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::DLC_PLAYABLE_STATUS_CHANGED, Some(global_callback));
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::SYSTEM_STATE_CHANGED,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::AUTHORIZE_FINISHED,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::GAME_PLAYABLE_STATUS_CHANGED,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::DLC_PLAYABLE_STATUS_CHANGED,
+            Some(global_callback),
+        );
         tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::CLOUD_SAVE_LIST, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::CLOUD_SAVE_CREATE, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::CLOUD_SAVE_UPDATE, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::CLOUD_SAVE_DELETE, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::CLOUD_SAVE_GET_DATA, Some(global_callback));
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(event_id::CLOUD_SAVE_GET_COVER, Some(global_callback));
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::CLOUD_SAVE_CREATE,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::CLOUD_SAVE_UPDATE,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::CLOUD_SAVE_DELETE,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::CLOUD_SAVE_GET_DATA,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::CLOUD_SAVE_GET_COVER,
+            Some(global_callback),
+        );
     }
 }
 
 /// Poll for events from the SDK
-/// 
+///
 /// This calls `TapSDK_RunCallbacks()` to process pending callbacks,
 /// then returns all events that were queued.
 pub fn poll_events() -> Vec<TapEvent> {
@@ -177,19 +219,19 @@ pub fn poll_events() -> Vec<TapEvent> {
     unsafe {
         tapsdk_pc_sys::TapSDK_RunCallbacks();
     }
-    
+
     // Then drain the event queue
     let mut queue = EVENT_QUEUE.lock().unwrap();
     queue.drain(..).collect()
 }
 
 /// Global callback handler called by the SDK
-/// 
+///
 /// # Safety
 /// This function is called from C code with raw pointers
 unsafe extern "C" fn global_callback(event_id: u32, data: *mut std::ffi::c_void) {
     let event = parse_event(event_id, data);
-    
+
     if let Ok(mut queue) = EVENT_QUEUE.lock() {
         queue.push_back(event);
     }
@@ -207,20 +249,24 @@ unsafe fn parse_event(event_id: u32, data: *mut std::ffi::c_void) -> TapEvent {
                 state: SystemState::from(notification.state),
             })
         }
-        
+
         event_id::AUTHORIZE_FINISHED => {
             if data.is_null() {
                 return TapEvent::Unknown { event_id };
             }
             let response = &*(data as *const tapsdk_pc_sys::AuthorizeFinishedResponse);
-            
+
             let error = {
                 let error_str = CStr::from_ptr(response.error.as_ptr())
                     .to_string_lossy()
                     .into_owned();
-                if error_str.is_empty() { None } else { Some(error_str) }
+                if error_str.is_empty() {
+                    None
+                } else {
+                    Some(error_str)
+                }
             };
-            
+
             let token = if !response.is_cancel && error.is_none() {
                 Some(AuthToken {
                     token_type: CStr::from_ptr(response.token_type.as_ptr())
@@ -242,14 +288,14 @@ unsafe fn parse_event(event_id: u32, data: *mut std::ffi::c_void) -> TapEvent {
             } else {
                 None
             };
-            
+
             TapEvent::AuthorizeFinished(AuthorizeFinishedData {
                 is_cancel: response.is_cancel,
                 error,
                 token,
             })
         }
-        
+
         event_id::GAME_PLAYABLE_STATUS_CHANGED => {
             if data.is_null() {
                 return TapEvent::Unknown { event_id };
@@ -259,7 +305,7 @@ unsafe fn parse_event(event_id: u32, data: *mut std::ffi::c_void) -> TapEvent {
                 is_playable: response.is_playable,
             })
         }
-        
+
         event_id::DLC_PLAYABLE_STATUS_CHANGED => {
             if data.is_null() {
                 return TapEvent::Unknown { event_id };
@@ -272,107 +318,107 @@ unsafe fn parse_event(event_id: u32, data: *mut std::ffi::c_void) -> TapEvent {
                 is_playable: response.is_playable,
             })
         }
-        
+
         event_id::CLOUD_SAVE_LIST => {
             if data.is_null() {
                 return TapEvent::Unknown { event_id };
             }
             let response = &*(data as *const tapsdk_pc_sys::TapCloudSaveListResponse);
-            
+
             let error = parse_sdk_error(response.error);
-            
+
             let saves = if response.saves.is_null() || response.save_count <= 0 {
                 Vec::new()
             } else {
-                let slice = std::slice::from_raw_parts(response.saves, response.save_count as usize);
+                let slice =
+                    std::slice::from_raw_parts(response.saves, response.save_count as usize);
                 slice.iter().map(|s| parse_cloud_save_info(s)).collect()
             };
-            
+
             TapEvent::CloudSaveList(CloudSaveListData {
                 request_id: response.request_id,
                 error,
                 saves,
             })
         }
-        
+
         event_id::CLOUD_SAVE_CREATE | event_id::CLOUD_SAVE_UPDATE => {
             if data.is_null() {
                 return TapEvent::Unknown { event_id };
             }
             let response = &*(data as *const tapsdk_pc_sys::TapCloudSaveCreateResponse);
-            
+
             let error = parse_sdk_error(response.error);
-            
+
             let save = if response.save.is_null() {
                 None
             } else {
                 Some(parse_cloud_save_info(&*response.save))
             };
-            
+
             let event_data = CloudSaveCreateData {
                 request_id: response.request_id,
                 error,
                 save,
             };
-            
+
             if event_id == event_id::CLOUD_SAVE_CREATE {
                 TapEvent::CloudSaveCreate(event_data)
             } else {
                 TapEvent::CloudSaveUpdate(event_data)
             }
         }
-        
+
         event_id::CLOUD_SAVE_DELETE => {
             if data.is_null() {
                 return TapEvent::Unknown { event_id };
             }
             let response = &*(data as *const tapsdk_pc_sys::TapCloudSaveDeleteResponse);
-            
+
             let error = parse_sdk_error(response.error);
-            
+
             let uuid = if response.uuid.is_null() {
                 String::new()
             } else {
-                CStr::from_ptr(response.uuid)
-                    .to_string_lossy()
-                    .into_owned()
+                CStr::from_ptr(response.uuid).to_string_lossy().into_owned()
             };
-            
+
             TapEvent::CloudSaveDelete(CloudSaveDeleteData {
                 request_id: response.request_id,
                 error,
                 uuid,
             })
         }
-        
+
         event_id::CLOUD_SAVE_GET_DATA | event_id::CLOUD_SAVE_GET_COVER => {
             if data.is_null() {
                 return TapEvent::Unknown { event_id };
             }
             let response = &*(data as *const tapsdk_pc_sys::TapCloudSaveGetFileResponse);
-            
+
             let error = parse_sdk_error(response.error);
-            
+
             let file_data = if response.data.is_null() || response.size == 0 {
                 Vec::new()
             } else {
-                let slice = std::slice::from_raw_parts(response.data as *const u8, response.size as usize);
+                let slice =
+                    std::slice::from_raw_parts(response.data as *const u8, response.size as usize);
                 slice.to_vec()
             };
-            
+
             let event_data = CloudSaveGetFileData {
                 request_id: response.request_id,
                 error,
                 data: file_data,
             };
-            
+
             if event_id == event_id::CLOUD_SAVE_GET_DATA {
                 TapEvent::CloudSaveGetData(event_data)
             } else {
                 TapEvent::CloudSaveGetCover(event_data)
             }
         }
-        
+
         _ => TapEvent::Unknown { event_id },
     }
 }
@@ -382,16 +428,14 @@ unsafe fn parse_sdk_error(error: *const tapsdk_pc_sys::TapSDK_Error) -> Option<(
     if error.is_null() {
         return None;
     }
-    
+
     let err = &*error;
     let message = if err.message.is_null() {
         String::new()
     } else {
-        CStr::from_ptr(err.message)
-            .to_string_lossy()
-            .into_owned()
+        CStr::from_ptr(err.message).to_string_lossy().into_owned()
     };
-    
+
     Some((err.code, message))
 }
 
@@ -426,6 +470,10 @@ unsafe fn ptr_to_optional_string(ptr: *const std::os::raw::c_char) -> Option<Str
         None
     } else {
         let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
-        if s.is_empty() { None } else { Some(s) }
+        if s.is_empty() {
+            None
+        } else {
+            Some(s)
+        }
     }
 }

@@ -67,7 +67,7 @@ fn test_dlc_store_without_init() {
     // DLC store should return error or false when SDK not initialized
     let result = dlc::show_dlc_store("test_dlc");
     match result {
-        Err(_) => (), // Expected - SDK not initialized
+        Err(_) => (),    // Expected - SDK not initialized
         Ok(false) => (), // Also acceptable - operation failed
         Ok(true) => panic!("show_dlc_store should not succeed when not initialized"),
     }
@@ -77,7 +77,10 @@ fn test_dlc_store_without_init() {
 fn test_user_authorize_without_init() {
     // Authorize should fail when SDK not initialized
     let result = user::authorize("public_profile");
-    assert!(result.is_err(), "authorize should fail when not initialized");
+    assert!(
+        result.is_err(),
+        "authorize should fail when not initialized"
+    );
 }
 
 #[test]
