@@ -1,0 +1,10 @@
+[package]
+name = "tapsdk-pc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "High-level Rust bindings to TapTap PC SDK"
+
+[dependencies]
+tapsdk-pc-sys = { path = "../tapsdk-pc-sys" }
+thiserror.workspace = true

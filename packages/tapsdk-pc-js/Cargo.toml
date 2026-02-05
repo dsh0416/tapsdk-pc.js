@@ -1,0 +1,21 @@
+[package]
+name = "tapsdk-pc-js"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Node.js bindings for TapTap PC SDK"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+tapsdk-pc = { path = "../../crates/tapsdk-pc" }
+napi = { version = "2", default-features = false, features = ["napi4", "serde-json"] }
+napi-derive = "2"
+serde = { version = "1.0", features = ["derive"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true

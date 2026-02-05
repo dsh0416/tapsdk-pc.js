@@ -1,0 +1,13 @@
+[package]
+name = "tapsdk-pc-sys"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Raw FFI bindings to TapTap PC SDK"
+links = "taptap_api"
+
+[build-dependencies]
+bindgen = "0.69"
+
+[features]
+default = []
