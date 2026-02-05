@@ -14,7 +14,7 @@ hero:
       link: /getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/user/tapsdk-pc-js
+      link: https://github.com/dsh0416/tapsdk-pc.js
 
 features:
   - icon: 🎮

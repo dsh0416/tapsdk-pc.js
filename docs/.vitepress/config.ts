@@ -45,11 +45,11 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/user/tapsdk-pc-js' },
+      { icon: 'github', link: 'https://github.com/dsh0416/tapsdk-pc.js' },
     ],
 
     editLink: {
-      pattern: 'https://github.com/user/tapsdk-pc-js/edit/main/docs/:path',
+      pattern: 'https://github.com/dsh0416/tapsdk-pc.js/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
 

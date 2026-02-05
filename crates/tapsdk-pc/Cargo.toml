@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "High-level Rust bindings to TapTap PC SDK"
+repository = "https://github.com/dsh0416/tapsdk-pc.js"
+homepage = "https://dsh0416.github.io/tapsdk-pc.js/"
+documentation = "https://docs.rs/tapsdk-pc"
 
 [package.metadata.tapsdk]
 upstream-version = "4.1.1"

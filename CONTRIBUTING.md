@@ -16,7 +16,7 @@ Thank you for your interest in contributing! This document provides guidelines a
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/user/tapsdk-pc-js.git
+   git clone https://github.com/dsh0416/tapsdk-pc.js.git
    cd tapsdk-pc-js
    ```
 

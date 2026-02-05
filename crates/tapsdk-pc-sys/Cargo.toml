@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Raw FFI bindings to TapTap PC SDK"
+repository = "https://github.com/dsh0416/tapsdk-pc.js"
+homepage = "https://dsh0416.github.io/tapsdk-pc.js/"
+documentation = "https://docs.rs/tapsdk-pc-sys"
 links = "taptap_api"
 include = ["src/**/*", "sdk/**/*", "build.rs", "wrapper.h"]
 
