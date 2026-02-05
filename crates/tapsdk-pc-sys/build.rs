@@ -109,21 +109,30 @@ fn build_stub() {
 // Stub bindings for non-Windows platforms
 // TapTap PC SDK only supports Windows
 
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::{c_char, c_void};
 
-// Stub types
+// Stub types - these are never instantiated, all functions panic
 pub type TapCloudSaveHandle = *mut c_void;
+pub type ITapCloudSave = c_void;
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct TapSDK_Error {
     pub code: i64,
-    pub message: [c_char; 256],
+    pub message: *const c_char,
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct AuthToken {
+#[derive(Debug, Copy, Clone)]
+pub struct TapSystemStateNotification {
+    pub state: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct AuthorizeFinishedResponse {
+    pub is_cancel: bool,
+    pub error: [c_char; 256],
     pub token_type: [c_char; 64],
     pub kid: [c_char; 256],
     pub mac_key: [c_char; 256],
@@ -132,90 +141,101 @@ pub struct AuthToken {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct SystemStateChangedData {
-    pub state: u32,
-}
-
-#[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct AuthorizeFinishedResponse {
-    pub is_cancel: bool,
-    pub error: *const c_char,
-    pub token: *const AuthToken,
-}
-
-#[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct GamePlayableStatusChangedData {
+#[derive(Debug, Copy, Clone)]
+pub struct GamePlayableStatusChangedResponse {
     pub is_playable: bool,
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct DlcPlayableStatusChangedData {
+#[derive(Debug, Copy, Clone)]
+pub struct DLCPlayableStatusChangedResponse {
     pub dlc_id: [c_char; 256],
     pub is_playable: bool,
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct TapCloudSaveInfo {
-    pub uuid: [c_char; 64],
-    pub file_id: [c_char; 64],
-    pub name: [c_char; 64],
-    pub save_size: u64,
-    pub cover_size: u64,
-    pub summary: [c_char; 512],
-    pub extra: [c_char; 1024],
-    pub playtime: u64,
-    pub created_time: i64,
-    pub modified_time: i64,
+    pub uuid: *const c_char,
+    pub file_id: *const c_char,
+    pub name: *const c_char,
+    pub save_size: u32,
+    pub cover_size: u32,
+    pub summary: *const c_char,
+    pub extra: *const c_char,
+    pub playtime: u32,
+    pub created_time: u32,
+    pub modified_time: u32,
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct CloudSaveListData {
-    pub request_id: u64,
+#[derive(Debug, Copy, Clone)]
+pub struct TapCloudSaveListResponse {
+    pub request_id: i64,
     pub error: *const TapSDK_Error,
     pub saves: *const TapCloudSaveInfo,
-    pub count: u64,
+    pub save_count: i32,
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct CloudSaveCreateData {
-    pub request_id: u64,
+#[derive(Debug, Copy, Clone)]
+pub struct TapCloudSaveCreateResponse {
+    pub request_id: i64,
     pub error: *const TapSDK_Error,
     pub save: *const TapCloudSaveInfo,
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct CloudSaveDeleteData {
-    pub request_id: u64,
+#[derive(Debug, Copy, Clone)]
+pub struct TapCloudSaveDeleteResponse {
+    pub request_id: i64,
     pub error: *const TapSDK_Error,
-    pub uuid: [c_char; 64],
+    pub uuid: *const c_char,
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct CloudSaveGetFileData {
-    pub request_id: u64,
+#[derive(Debug, Copy, Clone)]
+pub struct TapCloudSaveGetFileResponse {
+    pub request_id: i64,
     pub error: *const TapSDK_Error,
-    pub data: *const u8,
-    pub size: u64,
+    pub data: *const c_void,
+    pub size: u32,
 }
 
-// Callback type definitions
-pub type TapSDK_SystemStateChangedCallback = Option<extern "C" fn(*const SystemStateChangedData)>;
-pub type TapSDK_AuthorizeFinishedCallback = Option<extern "C" fn(*const AuthorizeFinishedResponse)>;
-pub type TapSDK_GamePlayableStatusChangedCallback = Option<extern "C" fn(*const GamePlayableStatusChangedData)>;
-pub type TapSDK_DlcPlayableStatusChangedCallback = Option<extern "C" fn(*const DlcPlayableStatusChangedData)>;
-pub type TapCloudSave_ListCallback = Option<extern "C" fn(*const CloudSaveListData)>;
-pub type TapCloudSave_CreateCallback = Option<extern "C" fn(*const CloudSaveCreateData)>;
-pub type TapCloudSave_DeleteCallback = Option<extern "C" fn(*const CloudSaveDeleteData)>;
-pub type TapCloudSave_GetFileCallback = Option<extern "C" fn(*const CloudSaveGetFileData)>;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TapCloudSaveCreateRequest {
+    pub name: *const c_char,
+    pub summary: *const c_char,
+    pub extra: *const c_char,
+    pub playtime: u32,
+    pub data_file_path: *const c_char,
+    pub cover_file_path: *const c_char,
+    pub __bindgen_padding_0: [u8; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TapCloudSaveUpdateRequest {
+    pub uuid: *const c_char,
+    pub name: *const c_char,
+    pub summary: *const c_char,
+    pub extra: *const c_char,
+    pub playtime: u32,
+    pub data_file_path: *const c_char,
+    pub cover_file_path: *const c_char,
+    pub __bindgen_padding_0: [u8; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TapCloudSaveGetFileRequest {
+    pub uuid: *const c_char,
+    pub file_id: *const c_char,
+}
+
+// Callback type
+pub type TapCallback = Option<unsafe extern "C" fn(event_id: u32, data: *mut c_void)>;
 
 // Stub functions that panic on non-Windows
 #[inline(always)]
@@ -224,171 +244,117 @@ fn unsupported() -> ! {
 }
 
 #[no_mangle]
-pub extern "C" fn TapSDK_RestartAppIfNecessary(_client_id: *const c_char) -> bool {
+pub unsafe extern "C" fn TapSDK_RestartAppIfNecessary(_client_id: *const c_char) -> bool {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapSDK_Init(_err_msg: *mut c_char, _pub_key: *const c_char) -> u32 {
+pub unsafe extern "C" fn TapSDK_Init(_err_msg: *mut c_char, _pub_key: *const c_char) -> u32 {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapSDK_Shutdown() {
+pub unsafe extern "C" fn TapSDK_Shutdown() {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapSDK_RunCallbacks() {
+pub unsafe extern "C" fn TapSDK_RunCallbacks() {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapSDK_GetClientID(_buffer: *mut c_char) -> bool {
+pub unsafe extern "C" fn TapSDK_GetClientID(_buffer: *mut c_char) -> bool {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapSDK_IsInitialized() -> bool {
+pub unsafe extern "C" fn TapSDK_RegisterCallback(_event_id: u32, _cb: TapCallback) {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapSDK_SetSystemStateChangedCallback(_cb: TapSDK_SystemStateChangedCallback) {
+pub unsafe extern "C" fn TapSDK_UnregisterCallback(_event_id: u32, _cb: TapCallback) {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapUser_Authorize(_scopes: *const c_char) -> u32 {
+pub unsafe extern "C" fn TapUser_AsyncAuthorize(_scopes: *const c_char) -> u32 {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapUser_GetOpenID(_buffer: *mut c_char) -> bool {
+pub unsafe extern "C" fn TapUser_GetOpenID(_buffer: *mut c_char) -> bool {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapUser_SetAuthorizeFinishedCallback(_cb: TapSDK_AuthorizeFinishedCallback) {
+pub unsafe extern "C" fn TapApps_IsOwned() -> bool {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapApps_IsOwned() -> bool {
+pub unsafe extern "C" fn TapDLC_IsOwned(_dlc_id: *const c_char) -> bool {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapApps_SetPlayableStatusChangedCallback(_cb: TapSDK_GamePlayableStatusChangedCallback) {
+pub unsafe extern "C" fn TapDLC_ShowStore(_dlc_id: *const c_char) -> bool {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapDLC_IsOwned(_dlc_id: *const c_char) -> bool {
+pub unsafe extern "C" fn TapCloudSave() -> *mut ITapCloudSave {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapDLC_ShowStore(_dlc_id: *const c_char) -> bool {
+pub unsafe extern "C" fn TapCloudSave_AsyncList(_handle: *mut ITapCloudSave, _request_id: i64) -> u32 {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapDLC_SetPlayableStatusChangedCallback(_cb: TapSDK_DlcPlayableStatusChangedCallback) {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave() -> TapCloudSaveHandle {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave_AsyncList(_handle: TapCloudSaveHandle, _request_id: u64) -> u32 {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave_AsyncCreate(
-    _handle: TapCloudSaveHandle,
-    _request_id: u64,
-    _name: *const c_char,
-    _summary: *const c_char,
-    _extra: *const c_char,
-    _playtime: u64,
-    _data_file_path: *const c_char,
-    _cover_file_path: *const c_char,
+pub unsafe extern "C" fn TapCloudSave_AsyncCreate(
+    _handle: *mut ITapCloudSave,
+    _request_id: i64,
+    _request: *const TapCloudSaveCreateRequest,
 ) -> u32 {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapCloudSave_AsyncUpdate(
-    _handle: TapCloudSaveHandle,
-    _request_id: u64,
+pub unsafe extern "C" fn TapCloudSave_AsyncUpdate(
+    _handle: *mut ITapCloudSave,
+    _request_id: i64,
+    _request: *const TapCloudSaveUpdateRequest,
+) -> u32 {
+    unsupported()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn TapCloudSave_AsyncDelete(
+    _handle: *mut ITapCloudSave,
+    _request_id: i64,
     _uuid: *const c_char,
-    _name: *const c_char,
-    _summary: *const c_char,
-    _extra: *const c_char,
-    _playtime: u64,
-    _data_file_path: *const c_char,
-    _cover_file_path: *const c_char,
 ) -> u32 {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapCloudSave_AsyncDelete(_handle: TapCloudSaveHandle, _request_id: u64, _uuid: *const c_char) -> u32 {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave_AsyncGetData(
-    _handle: TapCloudSaveHandle,
-    _request_id: u64,
-    _uuid: *const c_char,
-    _file_id: *const c_char,
+pub unsafe extern "C" fn TapCloudSave_AsyncGetData(
+    _handle: *mut ITapCloudSave,
+    _request_id: i64,
+    _request: *const TapCloudSaveGetFileRequest,
 ) -> u32 {
     unsupported()
 }
 
 #[no_mangle]
-pub extern "C" fn TapCloudSave_AsyncGetCover(
-    _handle: TapCloudSaveHandle,
-    _request_id: u64,
-    _uuid: *const c_char,
-    _file_id: *const c_char,
+pub unsafe extern "C" fn TapCloudSave_AsyncGetCover(
+    _handle: *mut ITapCloudSave,
+    _request_id: i64,
+    _request: *const TapCloudSaveGetFileRequest,
 ) -> u32 {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave_SetListCallback(_handle: TapCloudSaveHandle, _cb: TapCloudSave_ListCallback) {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave_SetCreateCallback(_handle: TapCloudSaveHandle, _cb: TapCloudSave_CreateCallback) {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave_SetUpdateCallback(_handle: TapCloudSaveHandle, _cb: TapCloudSave_CreateCallback) {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave_SetDeleteCallback(_handle: TapCloudSaveHandle, _cb: TapCloudSave_DeleteCallback) {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave_SetGetDataCallback(_handle: TapCloudSaveHandle, _cb: TapCloudSave_GetFileCallback) {
-    unsupported()
-}
-
-#[no_mangle]
-pub extern "C" fn TapCloudSave_SetGetCoverCallback(_handle: TapCloudSaveHandle, _cb: TapCloudSave_GetFileCallback) {
     unsupported()
 }
 "#;
