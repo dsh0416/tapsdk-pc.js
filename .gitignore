@@ -17,6 +17,10 @@
 node_modules/
 **/node_modules/
 
+# Lock files (using pnpm)
+package-lock.json
+yarn.lock
+
 # Build output
 dist/
 **/dist/

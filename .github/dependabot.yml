@@ -1,0 +1,51 @@
+version: 2
+updates:
+  # Rust dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+
+  # Node.js dependencies (root)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-root:
+        patterns:
+          - "*"
+
+  # Node.js dependencies for the SDK
+  - package-ecosystem: "npm"
+    directory: "/packages/tapsdk-pc-js"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-sdk:
+        patterns:
+          - "*"
+
+  # Node.js dependencies for documentation
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-docs:
+        patterns:
+          - "*"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"

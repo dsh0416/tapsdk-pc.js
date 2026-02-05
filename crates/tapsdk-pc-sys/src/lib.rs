@@ -2,6 +2,11 @@
 //!
 //! This crate provides unsafe, low-level bindings to the TapTap PC SDK.
 //! For a safe, high-level API, use the `tapsdk-pc` crate instead.
+//!
+//! # Platform Support
+//!
+//! **Windows only.** This SDK only supports Windows (x86_64).
+//! On macOS and Linux, all functions will panic with an "unsupported platform" error.
 
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
@@ -9,7 +14,7 @@
 #![allow(dead_code)]
 #![allow(clippy::all)]
 
-// Include the generated bindings
+// Include the generated bindings (real on Windows, stubs on other platforms)
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 // Re-export commonly used constants for convenience
@@ -150,7 +155,19 @@ pub mod cloudsave_result {
     pub const COVER_FILE_TOO_LARGE: u32 = 9;
 }
 
-#[cfg(test)]
+/// Check if the current platform is supported
+#[inline]
+pub fn is_platform_supported() -> bool {
+    cfg!(target_os = "windows")
+}
+
+/// Returns an error message for unsupported platforms
+#[inline]
+pub fn unsupported_platform_error() -> &'static str {
+    "TapTap PC SDK is only supported on Windows. This platform (macOS/Linux) is not supported."
+}
+
+#[cfg(all(test, target_os = "windows"))]
 mod tests {
     use super::*;
     use std::ffi::CString;
@@ -169,12 +186,15 @@ mod tests {
     fn test_dll_loads_and_functions_exist() {
         // This test verifies the DLL is properly linked and functions are callable
         // The functions should be resolvable even if they fail at runtime
-        
+
         // Test TapSDK_RestartAppIfNecessary - should return false since we're not in TapTap
         let client_id = CString::new("test_client_id").unwrap();
         let result = unsafe { TapSDK_RestartAppIfNecessary(client_id.as_ptr()) };
         // Should return false since we're not launched from TapTap
-        assert!(!result, "RestartAppIfNecessary should return false when not in TapTap");
+        assert!(
+            !result,
+            "RestartAppIfNecessary should return false when not in TapTap"
+        );
     }
 
     #[test]
@@ -205,7 +225,10 @@ mod tests {
         // GetClientID should safely return false when SDK not initialized
         let mut buffer: [std::os::raw::c_char; 256] = [0; 256];
         let result = unsafe { TapSDK_GetClientID(buffer.as_mut_ptr()) };
-        assert!(!result, "GetClientID should return false when SDK not initialized");
+        assert!(
+            !result,
+            "GetClientID should return false when SDK not initialized"
+        );
     }
 
     #[test]
@@ -213,7 +236,10 @@ mod tests {
         // GetOpenID should safely return false when SDK not initialized
         let mut buffer: [std::os::raw::c_char; 256] = [0; 256];
         let result = unsafe { TapUser_GetOpenID(buffer.as_mut_ptr()) };
-        assert!(!result, "GetOpenID should return false when SDK not initialized");
+        assert!(
+            !result,
+            "GetOpenID should return false when SDK not initialized"
+        );
     }
 
     #[test]
@@ -221,7 +247,10 @@ mod tests {
         // DLC ownership check should safely return false when SDK not initialized
         let dlc_id = CString::new("test_dlc").unwrap();
         let owned = unsafe { TapDLC_IsOwned(dlc_id.as_ptr()) };
-        assert!(!owned, "IsDlcOwned should return false when SDK not initialized");
+        assert!(
+            !owned,
+            "IsDlcOwned should return false when SDK not initialized"
+        );
     }
 
     #[test]
@@ -234,26 +263,55 @@ mod tests {
     #[test]
     fn test_struct_sizes() {
         // Verify struct sizes are reasonable (helps catch alignment issues)
-        assert!(std::mem::size_of::<TapSDK_Error>() >= 16, "TapSDK_Error should be at least 16 bytes");
-        assert!(std::mem::size_of::<AuthorizeFinishedResponse>() > 0, "AuthorizeFinishedResponse should have size");
-        assert!(std::mem::size_of::<TapCloudSaveInfo>() > 0, "TapCloudSaveInfo should have size");
+        assert!(
+            std::mem::size_of::<TapSDK_Error>() >= 16,
+            "TapSDK_Error should be at least 16 bytes"
+        );
+        assert!(
+            std::mem::size_of::<AuthorizeFinishedResponse>() > 0,
+            "AuthorizeFinishedResponse should have size"
+        );
+        assert!(
+            std::mem::size_of::<TapCloudSaveInfo>() > 0,
+            "TapCloudSaveInfo should have size"
+        );
     }
 
     #[test]
     fn test_cloudsave_without_init() {
         // CloudSave functions should return appropriate error when SDK not initialized
         let handle = unsafe { TapCloudSave() };
-        
+
         if !handle.is_null() {
             let result = unsafe { TapCloudSave_AsyncList(handle, 1) };
             // Should return Uninitialized or SdkFailed
             assert!(
-                result == cloudsave_result::UNINITIALIZED || 
-                result == cloudsave_result::SDK_FAILED ||
-                result == cloudsave_result::NO_TAPTAP_CLIENT,
+                result == cloudsave_result::UNINITIALIZED
+                    || result == cloudsave_result::SDK_FAILED
+                    || result == cloudsave_result::NO_TAPTAP_CLIENT,
                 "CloudSave list should fail when not initialized, got: {}",
                 result
             );
+        }
+    }
+}
+
+#[cfg(all(test, not(target_os = "windows")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_platform_not_supported() {
+        assert!(!is_platform_supported());
+    }
+
+    #[test]
+    #[should_panic(expected = "only supported on Windows")]
+    fn test_functions_panic_on_unsupported_platform() {
+        use std::ffi::CString;
+        let client_id = CString::new("test").unwrap();
+        unsafe {
+            TapSDK_RestartAppIfNecessary(client_id.as_ptr());
         }
     }
 }

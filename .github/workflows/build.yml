@@ -1,0 +1,187 @@
+name: Build
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    name: Windows
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Cache Cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-x86_64-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            windows-x86_64-cargo-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native module
+        working-directory: packages/tapsdk-pc-js
+        run: pnpm run build:native
+
+      - name: Build TypeScript
+        working-directory: packages/tapsdk-pc-js
+        run: pnpm run build:ts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tapsdk-pc-x86_64-pc-windows-msvc
+          path: |
+            packages/tapsdk-pc-js/dist/
+            packages/tapsdk-pc-js/*.node
+          retention-days: 7
+
+  build-macos:
+    runs-on: macos-latest
+    name: macOS (unsupported)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Cache Cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-universal-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            macos-universal-cargo-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native module (ARM64)
+        working-directory: packages/tapsdk-pc-js
+        run: pnpm run build:native -- --target aarch64-apple-darwin
+
+      - name: Build TypeScript
+        working-directory: packages/tapsdk-pc-js
+        run: pnpm run build:ts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tapsdk-pc-aarch64-apple-darwin
+          path: |
+            packages/tapsdk-pc-js/dist/
+            packages/tapsdk-pc-js/*.node
+          retention-days: 7
+          if-no-files-found: warn
+
+  build-linux:
+    runs-on: ubuntu-latest
+    name: Linux (unsupported)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Cache Cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-x86_64-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            linux-x86_64-cargo-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native module
+        working-directory: packages/tapsdk-pc-js
+        run: pnpm run build:native -- --target x86_64-unknown-linux-gnu
+
+      - name: Build TypeScript
+        working-directory: packages/tapsdk-pc-js
+        run: pnpm run build:ts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tapsdk-pc-x86_64-unknown-linux-gnu
+          path: |
+            packages/tapsdk-pc-js/dist/
+            packages/tapsdk-pc-js/*.node
+          retention-days: 7
+          if-no-files-found: warn

@@ -1,11 +1,118 @@
 # TapTap PC SDK - JavaScript Bindings
 
-This project provides Rust and Node.js bindings for the TapTap PC SDK.
+Node.js bindings for the TapTap PC SDK, built with Rust and NAPI-RS.
+
+[![CI](https://github.com/user/tapsdk-pc-js/actions/workflows/ci.yml/badge.svg)](https://github.com/user/tapsdk-pc-js/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![npm version](https://img.shields.io/npm/v/tapsdk-pc.svg)](https://www.npmjs.com/package/tapsdk-pc)
+
+## Features
+
+- **Game Ownership** - Verify if users own your game or DLC
+- **User Authentication** - OAuth authentication via TapTap
+- **Cloud Saves** - Full cloud save support (create, update, download, delete)
+- **Native Performance** - Built with Rust and NAPI-RS
+
+## Documentation
+
+📚 **[View Full Documentation](./docs/)** - Run `pnpm docs:dev` to start the documentation site locally.
+
+## Quick Start
+
+### Installation
+
+```bash
+pnpm add tapsdk-pc
+```
+
+Or with npm/yarn:
+
+```bash
+npm install tapsdk-pc
+yarn add tapsdk-pc
+```
+
+### Basic Usage
+
+```typescript
+import { TapSdk, EventId, SystemState } from 'tapsdk-pc';
+
+// Check if restart is needed (call before init)
+if (TapSdk.restartAppIfNecessary('your_client_id')) {
+  process.exit(0); // TapTap will relaunch the game
+}
+
+// Initialize SDK
+const sdk = new TapSdk('your_public_key');
+
+// Check game ownership
+if (!sdk.isGameOwned()) {
+  console.log('User does not own this game');
+  process.exit(1);
+}
+
+// Request authorization
+sdk.authorize('public_profile');
+
+// Poll for events in your game loop
+function gameLoop() {
+  const events = sdk.runCallbacks();
+  
+  for (const event of events) {
+    switch (event.eventId) {
+      case EventId.AUTHORIZE_FINISHED:
+        if (event.token) {
+          console.log('Authorized! OpenID:', sdk.getOpenId());
+        }
+        break;
+        
+      case EventId.SYSTEM_STATE_CHANGED:
+        if (event.state === SystemState.PLATFORM_SHUTDOWN) {
+          sdk.shutdown();
+          process.exit(0);
+        }
+        break;
+    }
+  }
+  
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+```
+
+### Cloud Save
+
+```typescript
+import { CloudSave, EventId } from 'tapsdk-pc';
+
+const cloudSave = CloudSave.get();
+
+// List saves
+cloudSave.list(1);
+
+// Create a save
+cloudSave.create(2, {
+  name: 'save1',
+  summary: 'Chapter 1 completed',
+  playtime: 3600,
+  dataFilePath: './savegame.dat',
+  coverFilePath: './screenshot.png'
+});
+
+// Handle responses in runCallbacks()
+for (const event of sdk.runCallbacks()) {
+  if (event.eventId === EventId.CLOUD_SAVE_LIST) {
+    console.log(`Found ${event.saves.length} saves`);
+  }
+}
+```
 
 ## Project Structure
 
 ```
 tapsdk-pc-js/
+├── docs/                   # VitePress documentation
 ├── reference/              # Original SDK files (headers, DLL, lib)
 ├── crates/
 │   ├── tapsdk-pc-sys/     # Raw FFI bindings (bindgen)
@@ -36,141 +143,39 @@ tapsdk-pc-js/
 
 ## Prerequisites
 
-- **Rust** (stable toolchain)
-- **Node.js** >= 16
-- **LLVM/Clang** (for bindgen)
-- **TapTap Client** (for running the SDK)
+- **Node.js** >= 20
+- **pnpm** >= 9 (recommended) or npm/yarn
+- **Windows** x64
+- **TapTap Client** installed and running
+- For building from source:
+  - **Rust** (stable toolchain)
+  - **LLVM/Clang** (for bindgen)
 
-## Building
+## Building from Source
 
-### 1. Build Rust crates
+### 1. Install dependencies
+
+```bash
+pnpm install
+```
+
+### 2. Build Rust crates
 
 ```bash
 cargo build --workspace --release
 ```
 
-### 2. Build Node.js module
+### 3. Build Node.js module
 
 ```bash
 cd packages/tapsdk-pc-js
-npm install
-npm run build
+pnpm run build
 ```
 
-## Usage
+### 4. Run documentation locally
 
-### Node.js
-
-```javascript
-const { TapSdk, CloudSave, event_id, system_state } = require('tapsdk-pc');
-
-// Check if restart is needed (call before init)
-if (TapSdk.restartAppIfNecessary('your_client_id')) {
-  process.exit(0); // TapTap will relaunch the game
-}
-
-// Initialize SDK
-const sdk = new TapSdk('your_public_key');
-
-// Check game ownership
-if (!sdk.isGameOwned()) {
-  console.log('User does not own this game');
-  process.exit(1);
-}
-
-// Request authorization
-sdk.authorize('public_profile');
-
-// Poll for events in your game loop
-function gameLoop() {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    switch (event.eventId) {
-      case event_id.AUTHORIZE_FINISHED:
-        if (event.token) {
-          console.log('Authorized! OpenID:', sdk.getOpenId());
-        }
-        break;
-        
-      case event_id.SYSTEM_STATE_CHANGED:
-        if (event.state === system_state.PLATFORM_SHUTDOWN) {
-          // Save game and exit
-          sdk.shutdown();
-          process.exit(0);
-        }
-        break;
-    }
-  }
-  
-  requestAnimationFrame(gameLoop);
-}
-```
-
-### Cloud Save
-
-```javascript
-const cloudSave = CloudSave.get();
-
-// List saves
-cloudSave.list(1); // request_id = 1
-
-// Create a save
-cloudSave.create(2, {
-  name: 'save1',
-  summary: 'Chapter 1 completed',
-  playtime: 3600, // seconds
-  dataFilePath: './savegame.dat',
-  coverFilePath: './screenshot.png'
-});
-
-// Handle responses in runCallbacks()
-for (const event of sdk.runCallbacks()) {
-  if (event.eventId === event_id.CLOUD_SAVE_LIST) {
-    console.log(`Found ${event.saves.length} saves`);
-  }
-}
-```
-
-### Rust
-
-```rust
-use tapsdk_pc::{TapSdk, user, ownership, dlc, callback::TapEvent};
-
-fn main() -> tapsdk_pc::Result<()> {
-    // Check if restart needed
-    if tapsdk_pc::restart_app_if_necessary("client_id")? {
-        return Ok(());
-    }
-
-    // Initialize
-    let sdk = TapSdk::init("public_key")?;
-
-    // Check ownership
-    if !ownership::is_game_owned() {
-        return Err("User doesn't own game".into());
-    }
-
-    // Authorize
-    user::authorize("public_profile")?;
-
-    // Game loop
-    loop {
-        for event in sdk.run_callbacks() {
-            match event {
-                TapEvent::AuthorizeFinished(data) => {
-                    if let Some(token) = data.token {
-                        println!("Authorized!");
-                    }
-                }
-                TapEvent::SystemStateChanged(data) => {
-                    // Handle platform state changes
-                }
-                _ => {}
-            }
-        }
-    }
-}
+```bash
+pnpm docs:dev
 ```
 
 ## API Reference
@@ -181,8 +186,8 @@ fn main() -> tapsdk_pc::Result<()> {
 |--------|-------------|
 | `TapSdk.restartAppIfNecessary(clientId)` | Check if app needs restart |
 | `new TapSdk(pubKey)` | Initialize the SDK |
-| `sdk.getClientId()` | Get the client ID |
 | `TapSdk.isInitialized()` | Check if SDK is initialized |
+| `sdk.getClientId()` | Get the client ID |
 | `sdk.runCallbacks()` | Poll for events |
 | `sdk.authorize(scopes)` | Request user authorization |
 | `sdk.getOpenId()` | Get user's OpenID |
@@ -205,18 +210,22 @@ fn main() -> tapsdk_pc::Result<()> {
 
 ### Event Types
 
-| Event ID | Event Type | Description |
-|----------|------------|-------------|
-| 1 | SystemStateChanged | Platform online/offline/shutdown |
-| 2002 | AuthorizeFinished | Auth flow completed |
-| 4001 | GamePlayableStatusChanged | Game ownership changed |
-| 4002 | DlcPlayableStatusChanged | DLC ownership changed |
-| 6001 | CloudSaveList | Save list response |
-| 6002 | CloudSaveCreate | Save created |
-| 6003 | CloudSaveUpdate | Save updated |
-| 6004 | CloudSaveDelete | Save deleted |
-| 6005 | CloudSaveGetData | Save data downloaded |
-| 6006 | CloudSaveGetCover | Cover image downloaded |
+| Event ID | Constant | Description |
+|----------|----------|-------------|
+| 1 | `SYSTEM_STATE_CHANGED` | Platform online/offline/shutdown |
+| 2002 | `AUTHORIZE_FINISHED` | Auth flow completed |
+| 4001 | `GAME_PLAYABLE_STATUS_CHANGED` | Game ownership changed |
+| 4002 | `DLC_PLAYABLE_STATUS_CHANGED` | DLC ownership changed |
+| 6001 | `CLOUD_SAVE_LIST` | Save list response |
+| 6002 | `CLOUD_SAVE_CREATE` | Save created |
+| 6003 | `CLOUD_SAVE_UPDATE` | Save updated |
+| 6004 | `CLOUD_SAVE_DELETE` | Save deleted |
+| 6005 | `CLOUD_SAVE_GET_DATA` | Save data downloaded |
+| 6006 | `CLOUD_SAVE_GET_COVER` | Cover image downloaded |
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
