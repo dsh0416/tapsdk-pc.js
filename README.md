@@ -17,7 +17,7 @@ Based on **TapTap PC SDK v4.1.1**.
 
 ## Documentation
 
-📚 **[View Full Documentation](./docs/)** - Run `pnpm docs:dev` to start the documentation site locally.
+📚 **[View Full Documentation](https://dsh0416.github.io/tapsdk-pc.js/)** - Or run `pnpm docs:dev` to start locally.
 
 ## Quick Start
 
