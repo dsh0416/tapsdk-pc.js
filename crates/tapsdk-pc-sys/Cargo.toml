@@ -11,7 +11,7 @@ include = ["src/**/*", "sdk/**/*", "build.rs", "wrapper.h"]
 upstream-version = "4.1.1"
 
 [build-dependencies]
-bindgen = "0.69"
+bindgen = "0.72"
 
 [features]
 default = []
