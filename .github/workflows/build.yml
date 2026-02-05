@@ -76,7 +76,7 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
-    name: macOS (unsupported)
+    name: macOS
 
     steps:
       - name: Checkout repository
@@ -132,7 +132,7 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
-    name: Linux (unsupported)
+    name: Linux
 
     steps:
       - name: Checkout repository
