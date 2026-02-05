@@ -7,6 +7,8 @@ Based on **TapTap PC SDK v4.1.1**.
 [![CI](https://github.com/dsh0416/tapsdk-pc.js/actions/workflows/build.yml/badge.svg)](https://github.com/dsh0416/tapsdk-pc.js/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/tapsdk-pc.svg)](https://www.npmjs.com/package/tapsdk-pc)
+[![crates.io](https://img.shields.io/crates/v/tapsdk-pc.svg)](https://crates.io/crates/tapsdk-pc)
+[![crates.io](https://img.shields.io/crates/v/tapsdk-pc-sys.svg)](https://crates.io/crates/tapsdk-pc-sys)
 
 ## Features
 
