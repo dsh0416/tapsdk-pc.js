@@ -8,4 +8,6 @@ edition = "2021"
 license = "MIT"
 
 [workspace.dependencies]
+tapsdk-pc = { version = "0.1", path = "crates/tapsdk-pc" }
+tapsdk-pc-sys = { version = "0.1", path = "crates/tapsdk-pc-sys" }
 thiserror = "1.0"

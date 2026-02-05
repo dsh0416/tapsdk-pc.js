@@ -6,5 +6,5 @@ license.workspace = true
 description = "High-level Rust bindings to TapTap PC SDK"
 
 [dependencies]
-tapsdk-pc-sys = { path = "../tapsdk-pc-sys" }
+tapsdk-pc-sys.workspace = true
 thiserror.workspace = true

@@ -9,7 +9,7 @@ description = "Node.js bindings for TapTap PC SDK"
 crate-type = ["cdylib"]
 
 [dependencies]
-tapsdk-pc = { path = "../../crates/tapsdk-pc" }
+tapsdk-pc.workspace = true
 napi = { version = "2", default-features = false, features = ["napi4", "serde-json"] }
 napi-derive = "2"
 serde = { version = "1.0", features = ["derive"] }
