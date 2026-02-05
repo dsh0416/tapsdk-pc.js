@@ -159,9 +159,12 @@ jobs:
         working-directory: packages/tapsdk-pc-js
         run: ls -la
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Publish to npm
         working-directory: packages/tapsdk-pc-js
-        run: NODE_AUTH_TOKEN="" pnpm publish --access public --provenance --no-git-checks
+        run: NODE_AUTH_TOKEN="" pnpm publish --access public --provenance --no-git-checks --ignore-scripts
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
