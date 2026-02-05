@@ -144,18 +144,6 @@ pnpm docs:build
 1. Create a new `.md` file in the appropriate directory
 2. Update `docs/.vitepress/config.ts` to add it to the sidebar
 
-## Release Process
-
-Releases are automated via GitHub Actions:
-
-1. Update version in `packages/tapsdk-pc-js/package.json`
-2. Create and push a git tag:
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-3. GitHub Actions will build and publish to npm
-
 ## Questions?
 
 If you have questions, please open an issue on GitHub.

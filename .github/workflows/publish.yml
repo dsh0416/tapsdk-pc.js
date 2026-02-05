@@ -71,7 +71,7 @@ jobs:
       - name: Copy DLL (Windows only)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Copy-Item reference/taptap_api.dll packages/tapsdk-pc-js/
+        run: Copy-Item crates/tapsdk-pc-sys/sdk/taptap_api.dll packages/tapsdk-pc-js/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -84,10 +84,34 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  publish:
+  publish-crates:
+    name: Publish to crates.io
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Publish tapsdk-pc-sys
+        run: cargo publish -p tapsdk-pc-sys
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish tapsdk-pc
+        run: cargo publish -p tapsdk-pc
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  publish-npm:
     name: Publish to npm
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, publish-crates]
 
     steps:
       - name: Checkout repository
@@ -135,9 +159,7 @@ jobs:
 
       - name: Publish to npm
         working-directory: packages/tapsdk-pc-js
-        run: pnpm publish --access public --provenance --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: NODE_AUTH_TOKEN="" pnpm publish --access public --provenance --no-git-checks
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
