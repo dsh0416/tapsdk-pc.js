@@ -2,6 +2,8 @@
 
 Node.js bindings for the TapTap PC SDK, built with Rust and NAPI-RS.
 
+Based on **TapTap PC SDK v4.1.1**.
+
 [![CI](https://github.com/user/tapsdk-pc-js/actions/workflows/ci.yml/badge.svg)](https://github.com/user/tapsdk-pc-js/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/tapsdk-pc.svg)](https://www.npmjs.com/package/tapsdk-pc)
@@ -113,9 +115,9 @@ for (const event of sdk.runCallbacks()) {
 ```
 tapsdk-pc-js/
 ├── docs/                   # VitePress documentation
-├── reference/              # Original SDK files (headers, DLL, lib)
 ├── crates/
 │   ├── tapsdk-pc-sys/     # Raw FFI bindings (bindgen)
+│   │   └── sdk/           # Bundled SDK files (headers, DLL, lib)
 │   └── tapsdk-pc/         # Safe Rust API
 └── packages/
     └── tapsdk-pc-js/      # Node.js bindings (NAPI-RS)

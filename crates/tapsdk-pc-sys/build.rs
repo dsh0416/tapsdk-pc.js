@@ -15,26 +15,26 @@ fn main() {
 
 #[cfg(target_os = "windows")]
 fn build_windows() {
-    // Path to the reference directory containing headers and lib
+    // Path to the SDK directory containing headers and lib (bundled with crate)
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let reference_dir = PathBuf::from(&manifest_dir).join("../../reference");
-    let reference_dir = reference_dir
+    let sdk_dir = PathBuf::from(&manifest_dir).join("sdk");
+    let sdk_dir = sdk_dir
         .canonicalize()
-        .expect("Failed to find reference directory");
+        .expect("Failed to find sdk directory");
 
     // Tell cargo to link against taptap_api.lib
-    println!("cargo:rustc-link-search=native={}", reference_dir.display());
+    println!("cargo:rustc-link-search=native={}", sdk_dir.display());
     println!("cargo:rustc-link-lib=dylib=taptap_api");
 
     // Tell cargo to rerun if the headers change
     println!("cargo:rerun-if-changed=wrapper.h");
     println!(
         "cargo:rerun-if-changed={}/taptap_api.h",
-        reference_dir.display()
+        sdk_dir.display()
     );
     println!(
         "cargo:rerun-if-changed={}/taptap_cloudsave.h",
-        reference_dir.display()
+        sdk_dir.display()
     );
 
     // Generate bindings using bindgen
@@ -42,7 +42,7 @@ fn build_windows() {
         // Input header
         .header("wrapper.h")
         // Add include path for the reference headers
-        .clang_arg(format!("-I{}", reference_dir.display()))
+        .clang_arg(format!("-I{}", sdk_dir.display()))
         // Force C mode to avoid C++ enum class issues
         // The header uses #ifdef __cplusplus to provide C-compatible typedefs
         .clang_arg("-xc")
@@ -87,7 +87,7 @@ fn build_windows() {
 
     // Go up from OUT_DIR to find the target directory
     // OUT_DIR is typically target/<profile>/build/<crate>/out
-    let dll_src = reference_dir.join("taptap_api.dll");
+    let dll_src = sdk_dir.join("taptap_api.dll");
     if dll_src.exists() {
         // Copy to multiple locations to ensure it's found at runtime
         if let Some(deps_dir) = target_path.ancestors().nth(3) {
