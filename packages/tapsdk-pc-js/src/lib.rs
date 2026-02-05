@@ -9,11 +9,7 @@ use napi_derive::napi;
 use serde::Serialize;
 use std::path::PathBuf;
 
-use tapsdk_pc::callback::{
-    AuthorizeFinishedData, CloudSaveCreateData, CloudSaveDeleteData, CloudSaveGetFileData,
-    CloudSaveInfo as RustCloudSaveInfo, CloudSaveListData, DlcPlayableStatusChangedData,
-    GamePlayableStatusChangedData, SystemStateChangedData,
-};
+use tapsdk_pc::callback::CloudSaveInfo as RustCloudSaveInfo;
 use tapsdk_pc::error::SystemState;
 
 #[napi]
@@ -269,7 +265,7 @@ impl TapSdk {
     #[napi(
         ts_return_type = "Array<SystemStateChangedEvent | AuthorizeFinishedEvent | GamePlayableStatusChangedEvent | DlcPlayableStatusChangedEvent | CloudSaveListEvent | CloudSaveCreateEvent | CloudSaveDeleteEvent | CloudSaveGetFileEvent | UnknownEvent>"
     )]
-    pub fn run_callbacks(&self, env: Env) -> Result<Vec<napi::JsUnknown>> {
+    pub fn run_callbacks(&self) -> Result<Vec<serde_json::Value>> {
         let inner = self
             .inner
             .as_ref()
@@ -281,37 +277,88 @@ impl TapSdk {
         for event in events {
             let js_event = match event {
                 tapsdk_pc::callback::TapEvent::SystemStateChanged(data) => {
-                    convert_system_state_event(env, data)?
+                    serde_json::to_value(&SystemStateChangedEvent {
+                        event_id: event_id::SYSTEM_STATE_CHANGED,
+                        state: system_state_to_u32(data.state),
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::AuthorizeFinished(data) => {
-                    convert_authorize_event(env, data)?
+                    serde_json::to_value(&AuthorizeFinishedEvent {
+                        event_id: event_id::AUTHORIZE_FINISHED,
+                        is_cancel: data.is_cancel,
+                        error: data.error,
+                        token: data.token.map(|t| AuthToken {
+                            token_type: t.token_type,
+                            kid: t.kid,
+                            mac_key: t.mac_key,
+                            mac_algorithm: t.mac_algorithm,
+                            scope: t.scope,
+                        }),
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::GamePlayableStatusChanged(data) => {
-                    convert_game_playable_event(env, data)?
+                    serde_json::to_value(&GamePlayableStatusChangedEvent {
+                        event_id: event_id::GAME_PLAYABLE_STATUS_CHANGED,
+                        is_playable: data.is_playable,
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::DlcPlayableStatusChanged(data) => {
-                    convert_dlc_playable_event(env, data)?
+                    serde_json::to_value(&DlcPlayableStatusChangedEvent {
+                        event_id: event_id::DLC_PLAYABLE_STATUS_CHANGED,
+                        dlc_id: data.dlc_id,
+                        is_playable: data.is_playable,
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::CloudSaveList(data) => {
-                    convert_cloud_save_list_event(env, data)?
+                    serde_json::to_value(&CloudSaveListEvent {
+                        event_id: event_id::CLOUD_SAVE_LIST,
+                        request_id: data.request_id,
+                        error: data.error.map(|(code, message)| SdkError { code, message }),
+                        saves: data.saves.into_iter().map(CloudSaveInfo::from).collect(),
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::CloudSaveCreate(data) => {
-                    convert_cloud_save_create_event(env, event_id::CLOUD_SAVE_CREATE, data)?
+                    serde_json::to_value(&CloudSaveCreateEvent {
+                        event_id: event_id::CLOUD_SAVE_CREATE,
+                        request_id: data.request_id,
+                        error: data.error.map(|(code, message)| SdkError { code, message }),
+                        save: data.save.map(CloudSaveInfo::from),
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::CloudSaveUpdate(data) => {
-                    convert_cloud_save_create_event(env, event_id::CLOUD_SAVE_UPDATE, data)?
+                    serde_json::to_value(&CloudSaveCreateEvent {
+                        event_id: event_id::CLOUD_SAVE_UPDATE,
+                        request_id: data.request_id,
+                        error: data.error.map(|(code, message)| SdkError { code, message }),
+                        save: data.save.map(CloudSaveInfo::from),
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::CloudSaveDelete(data) => {
-                    convert_cloud_save_delete_event(env, data)?
+                    serde_json::to_value(&CloudSaveDeleteEvent {
+                        event_id: event_id::CLOUD_SAVE_DELETE,
+                        request_id: data.request_id,
+                        error: data.error.map(|(code, message)| SdkError { code, message }),
+                        uuid: data.uuid,
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::CloudSaveGetData(data) => {
-                    convert_cloud_save_get_file_event(env, event_id::CLOUD_SAVE_GET_DATA, data)?
+                    serde_json::to_value(&CloudSaveGetFileEvent {
+                        event_id: event_id::CLOUD_SAVE_GET_DATA,
+                        request_id: data.request_id,
+                        error: data.error.map(|(code, message)| SdkError { code, message }),
+                        data: Buffer::from(data.data),
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::CloudSaveGetCover(data) => {
-                    convert_cloud_save_get_file_event(env, event_id::CLOUD_SAVE_GET_COVER, data)?
+                    serde_json::to_value(&CloudSaveGetFileEvent {
+                        event_id: event_id::CLOUD_SAVE_GET_COVER,
+                        request_id: data.request_id,
+                        error: data.error.map(|(code, message)| SdkError { code, message }),
+                        data: Buffer::from(data.data),
+                    })?
                 }
                 tapsdk_pc::callback::TapEvent::Unknown { event_id: id } => {
-                    env.to_js_value(&UnknownEvent { event_id: id })?
+                    serde_json::to_value(&UnknownEvent { event_id: id })?
                 }
             };
             result.push(js_event);
@@ -454,91 +501,4 @@ fn system_state_to_u32(state: SystemState) -> u32 {
         SystemState::PlatformOffline => system_state::PLATFORM_OFFLINE,
         SystemState::PlatformShutdown => system_state::PLATFORM_SHUTDOWN,
     }
-}
-
-fn convert_system_state_event(env: Env, data: SystemStateChangedData) -> Result<napi::JsUnknown> {
-    env.to_js_value(&SystemStateChangedEvent {
-        event_id: event_id::SYSTEM_STATE_CHANGED,
-        state: system_state_to_u32(data.state),
-    })
-}
-
-fn convert_authorize_event(env: Env, data: AuthorizeFinishedData) -> Result<napi::JsUnknown> {
-    env.to_js_value(&AuthorizeFinishedEvent {
-        event_id: event_id::AUTHORIZE_FINISHED,
-        is_cancel: data.is_cancel,
-        error: data.error,
-        token: data.token.map(|t| AuthToken {
-            token_type: t.token_type,
-            kid: t.kid,
-            mac_key: t.mac_key,
-            mac_algorithm: t.mac_algorithm,
-            scope: t.scope,
-        }),
-    })
-}
-
-fn convert_game_playable_event(
-    env: Env,
-    data: GamePlayableStatusChangedData,
-) -> Result<napi::JsUnknown> {
-    env.to_js_value(&GamePlayableStatusChangedEvent {
-        event_id: event_id::GAME_PLAYABLE_STATUS_CHANGED,
-        is_playable: data.is_playable,
-    })
-}
-
-fn convert_dlc_playable_event(
-    env: Env,
-    data: DlcPlayableStatusChangedData,
-) -> Result<napi::JsUnknown> {
-    env.to_js_value(&DlcPlayableStatusChangedEvent {
-        event_id: event_id::DLC_PLAYABLE_STATUS_CHANGED,
-        dlc_id: data.dlc_id,
-        is_playable: data.is_playable,
-    })
-}
-
-fn convert_cloud_save_list_event(env: Env, data: CloudSaveListData) -> Result<napi::JsUnknown> {
-    env.to_js_value(&CloudSaveListEvent {
-        event_id: event_id::CLOUD_SAVE_LIST,
-        request_id: data.request_id,
-        error: data.error.map(|(code, message)| SdkError { code, message }),
-        saves: data.saves.into_iter().map(CloudSaveInfo::from).collect(),
-    })
-}
-
-fn convert_cloud_save_create_event(
-    env: Env,
-    event_id: u32,
-    data: CloudSaveCreateData,
-) -> Result<napi::JsUnknown> {
-    env.to_js_value(&CloudSaveCreateEvent {
-        event_id,
-        request_id: data.request_id,
-        error: data.error.map(|(code, message)| SdkError { code, message }),
-        save: data.save.map(CloudSaveInfo::from),
-    })
-}
-
-fn convert_cloud_save_delete_event(env: Env, data: CloudSaveDeleteData) -> Result<napi::JsUnknown> {
-    env.to_js_value(&CloudSaveDeleteEvent {
-        event_id: event_id::CLOUD_SAVE_DELETE,
-        request_id: data.request_id,
-        error: data.error.map(|(code, message)| SdkError { code, message }),
-        uuid: data.uuid,
-    })
-}
-
-fn convert_cloud_save_get_file_event(
-    env: Env,
-    event_id: u32,
-    data: CloudSaveGetFileData,
-) -> Result<napi::JsUnknown> {
-    env.to_js_value(&CloudSaveGetFileEvent {
-        event_id,
-        request_id: data.request_id,
-        error: data.error.map(|(code, message)| SdkError { code, message }),
-        data: Buffer::from(data.data),
-    })
 }
