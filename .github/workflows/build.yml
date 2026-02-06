@@ -76,7 +76,13 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
-    name: macOS
+    name: macOS (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+          - target: x86_64-apple-darwin
 
     steps:
       - name: Checkout repository
@@ -93,7 +99,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.target }}
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -105,16 +111,16 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: macos-universal-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: macos-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            macos-universal-cargo-
+            macos-${{ matrix.target }}-cargo-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build native module (ARM64)
+      - name: Build native module
         working-directory: packages/tapsdk-pc-js
-        run: pnpm run build:native -- --target aarch64-apple-darwin
+        run: pnpm run build:native -- --target ${{ matrix.target }}
 
       - name: Build TypeScript
         working-directory: packages/tapsdk-pc-js
@@ -123,7 +129,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: tapsdk-pc-aarch64-apple-darwin
+          name: tapsdk-pc-${{ matrix.target }}
           path: |
             packages/tapsdk-pc-js/dist/
             packages/tapsdk-pc-js/*.node
