@@ -58,31 +58,23 @@ if (!sdk.isGameOwned()) {
 // Request authorization
 sdk.authorize('public_profile');
 
-// Poll for events in your game loop
-function gameLoop() {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    switch (event.eventId) {
-      case EventId.AUTHORIZE_FINISHED:
-        if (event.token) {
-          console.log('Authorized! OpenID:', sdk.getOpenId());
-        }
-        break;
-        
-      case EventId.SYSTEM_STATE_CHANGED:
-        if (event.state === SystemState.PLATFORM_SHUTDOWN) {
-          sdk.shutdown();
-          process.exit(0);
-        }
-        break;
-    }
+// Listen for events (automatically polled in background)
+sdk.on('event', (event) => {
+  switch (event.eventId) {
+    case EventId.AUTHORIZE_FINISHED:
+      if (event.token) {
+        console.log('Authorized! OpenID:', sdk.getOpenId());
+      }
+      break;
+      
+    case EventId.SYSTEM_STATE_CHANGED:
+      if (event.state === SystemState.PLATFORM_SHUTDOWN) {
+        sdk.shutdown();
+        process.exit(0);
+      }
+      break;
   }
-  
-  requestAnimationFrame(gameLoop);
-}
-
-gameLoop();
+});
 ```
 
 ### Cloud Save
@@ -104,12 +96,12 @@ cloudSave.create(2, {
   coverFilePath: './screenshot.png'
 });
 
-// Handle responses in runCallbacks()
-for (const event of sdk.runCallbacks()) {
+// Handle responses from the event stream
+sdk.on('event', (event) => {
   if (event.eventId === EventId.CLOUD_SAVE_LIST) {
     console.log(`Found ${event.saves.length} saves`);
   }
-}
+});
 ```
 
 ## Project Structure
@@ -192,7 +184,9 @@ pnpm docs:dev
 | `new TapSdk(pubKey)` | Initialize the SDK |
 | `TapSdk.isInitialized()` | Check if SDK is initialized |
 | `sdk.getClientId()` | Get the client ID |
-| `sdk.runCallbacks()` | Poll for events |
+| `sdk.on('event', cb)` | Listen for SDK events |
+| `sdk.off('event', cb)` | Remove event listener |
+| `sdk.once('event', cb)` | Listen once for an event |
 | `sdk.authorize(scopes)` | Request user authorization |
 | `sdk.getOpenId()` | Get user's OpenID |
 | `sdk.isGameOwned()` | Check if user owns game |
