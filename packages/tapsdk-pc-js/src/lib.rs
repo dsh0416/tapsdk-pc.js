@@ -6,7 +6,7 @@
 #![deny(clippy::all)]
 
 use napi::bindgen_prelude::*;
-use napi::threadsafe_function::{ThreadsafeFunctionCallMode, ThreadsafeFunction};
+use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -294,9 +294,7 @@ fn convert_event_to_json(event: TapEvent) -> serde_json::Result<serde_json::Valu
             error: data.error.map(|(code, message)| SdkError { code, message }),
             data: Buffer::from(data.data),
         }),
-        TapEvent::Unknown { event_id: id } => {
-            serde_json::to_value(UnknownEvent { event_id: id })
-        }
+        TapEvent::Unknown { event_id: id } => serde_json::to_value(UnknownEvent { event_id: id }),
     }
 }
 
@@ -325,7 +323,10 @@ impl TapSdk {
     /// Initialize the SDK and start the background event loop.
     ///
     /// The provided callback will be called with each event as it arrives.
-    #[napi(constructor, ts_args_type = "pubKey: string, callback: (event: any) => void")]
+    #[napi(
+        constructor,
+        ts_args_type = "pubKey: string, callback: (event: any) => void"
+    )]
     pub fn new(pub_key: String, callback: Function<'_, serde_json::Value, ()>) -> Result<Self> {
         let inner =
             tapsdk_pc::TapSdk::init(&pub_key).map_err(|e| Error::from_reason(e.to_string()))?;
@@ -349,18 +350,14 @@ impl TapSdk {
                 .expect("Failed to create tokio runtime for event loop");
 
             rt.block_on(async {
-                let mut interval =
-                    tokio::time::interval(std::time::Duration::from_millis(50));
+                let mut interval = tokio::time::interval(std::time::Duration::from_millis(50));
 
                 while running_clone.load(Ordering::Relaxed) {
                     interval.tick().await;
                     let events = tapsdk_pc::callback::poll_events();
                     for event in events {
                         if let Ok(js_event) = convert_event_to_json(event) {
-                            tsfn.call(
-                                Ok(js_event),
-                                ThreadsafeFunctionCallMode::NonBlocking,
-                            );
+                            tsfn.call(Ok(js_event), ThreadsafeFunctionCallMode::NonBlocking);
                         }
                     }
                 }
