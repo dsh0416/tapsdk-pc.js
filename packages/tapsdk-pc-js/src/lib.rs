@@ -6,7 +6,7 @@
 #![deny(clippy::all)]
 
 use napi::bindgen_prelude::*;
-use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
+use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi_derive::napi;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -333,10 +333,7 @@ impl TapSdk {
 
         // Create a threadsafe function from the JS callback so we can call it
         // from the background thread.
-        let tsfn: ThreadsafeFunction<serde_json::Value, ()> = callback
-            .build_threadsafe_function()
-            .callee_handled::<true>()
-            .build()?;
+        let tsfn = callback.build_threadsafe_function().build()?;
 
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
@@ -357,7 +354,7 @@ impl TapSdk {
                     let events = tapsdk_pc::callback::poll_events();
                     for event in events {
                         if let Ok(js_event) = convert_event_to_json(event) {
-                            tsfn.call(Ok(js_event), ThreadsafeFunctionCallMode::NonBlocking);
+                            tsfn.call(js_event, ThreadsafeFunctionCallMode::NonBlocking);
                         }
                     }
                 }
