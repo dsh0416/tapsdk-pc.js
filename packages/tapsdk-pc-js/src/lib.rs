@@ -58,6 +58,7 @@ pub mod system_state {
 /// Authorization token
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthToken {
     pub token_type: String,
     pub kid: String,
@@ -69,6 +70,7 @@ pub struct AuthToken {
 /// SDK Error info
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SdkError {
     pub code: i64,
     pub message: String,
@@ -77,6 +79,7 @@ pub struct SdkError {
 /// Cloud save information
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CloudSaveInfo {
     pub uuid: String,
     pub file_id: String,
@@ -146,6 +149,7 @@ pub struct UpdateSaveRequest {
 /// System state changed event
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SystemStateChangedEvent {
     pub event_id: u32,
     pub state: u32,
@@ -154,6 +158,7 @@ pub struct SystemStateChangedEvent {
 /// Authorization finished event
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthorizeFinishedEvent {
     pub event_id: u32,
     pub is_cancel: bool,
@@ -164,6 +169,7 @@ pub struct AuthorizeFinishedEvent {
 /// Game playable status changed event
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GamePlayableStatusChangedEvent {
     pub event_id: u32,
     pub is_playable: bool,
@@ -172,6 +178,7 @@ pub struct GamePlayableStatusChangedEvent {
 /// DLC playable status changed event
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DlcPlayableStatusChangedEvent {
     pub event_id: u32,
     pub dlc_id: String,
@@ -181,6 +188,7 @@ pub struct DlcPlayableStatusChangedEvent {
 /// Cloud save list event
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CloudSaveListEvent {
     pub event_id: u32,
     pub request_id: i64,
@@ -191,6 +199,7 @@ pub struct CloudSaveListEvent {
 /// Cloud save create/update event
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CloudSaveCreateEvent {
     pub event_id: u32,
     pub request_id: i64,
@@ -201,6 +210,7 @@ pub struct CloudSaveCreateEvent {
 /// Cloud save delete event
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CloudSaveDeleteEvent {
     pub event_id: u32,
     pub request_id: i64,
@@ -211,6 +221,7 @@ pub struct CloudSaveDeleteEvent {
 /// Cloud save get file event
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CloudSaveGetFileEvent {
     pub event_id: u32,
     pub request_id: i64,
@@ -222,6 +233,7 @@ pub struct CloudSaveGetFileEvent {
 /// Unknown event
 #[napi(object)]
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UnknownEvent {
     pub event_id: u32,
 }
