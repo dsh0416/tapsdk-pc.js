@@ -15,16 +15,15 @@ import type { CreateSaveRequest, UpdateSaveRequest } from './types.js';
  * const sdk = new TapSdk('your_public_key');
  * const cloudSave = CloudSave.get();
  *
- * // List saves
- * cloudSave.list(1); // requestId = 1
- *
- * // Poll for results
- * const events = sdk.runCallbacks();
- * for (const event of events) {
+ * // Listen for cloud save events
+ * sdk.on('event', (event) => {
  *   if (event.eventId === EventId.CLOUD_SAVE_LIST) {
  *     console.log(`Found ${event.saves.length} saves`);
  *   }
- * }
+ * });
+ *
+ * // List saves
+ * cloudSave.list(1); // requestId = 1
  * ```
  */
 export class CloudSave {

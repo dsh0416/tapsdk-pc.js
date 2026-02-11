@@ -3,10 +3,16 @@
  */
 
 import { native } from './native.js';
-import type { TapEvent } from './types.js';
+import type { TapEvent, TapSdkEvents } from './types.js';
+
+type TapSdkEventName = keyof TapSdkEvents;
+type TapSdkEventListener<K extends TapSdkEventName> = (...args: TapSdkEvents[K]) => void;
 
 /**
  * TapTap PC SDK wrapper for Node.js
+ *
+ * Events are automatically pushed from a background thread.
+ * Use the `on('event', callback)` pattern to receive them.
  *
  * @example
  * ```typescript
@@ -26,20 +32,22 @@ import type { TapEvent } from './types.js';
  *   process.exit(1);
  * }
  *
- * // Poll for events in your game loop
- * const events = sdk.runCallbacks();
- * for (const event of events) {
+ * // Listen for events
+ * sdk.on('event', (event) => {
  *   if (event.eventId === EventId.SYSTEM_STATE_CHANGED) {
  *     if (event.state === SystemState.PLATFORM_SHUTDOWN) {
  *       sdk.shutdown();
  *       process.exit(0);
  *     }
  *   }
- * }
+ * });
  * ```
  */
 export class TapSdk {
   private readonly _native: InstanceType<typeof native.TapSdk>;
+  private readonly _listeners: {
+    [K in TapSdkEventName]?: Set<TapSdkEventListener<K>>;
+  } = {};
 
   /**
    * Check if the app needs to restart (call before init)
@@ -63,13 +71,91 @@ export class TapSdk {
   }
 
   /**
-   * Initialize the SDK
+   * Initialize the SDK and start the background event loop.
+   *
+   * Events will be emitted via the 'event' event.
    *
    * @param pubKey - The public key from TapTap developer center
    * @throws Error if SDK initialization fails
    */
   constructor(pubKey: string) {
-    this._native = new native.TapSdk(pubKey);
+    this._native = new native.TapSdk(pubKey, (event: TapEvent) => {
+      this.emit('event', event);
+    });
+  }
+
+  /**
+   * Register an event listener.
+   *
+   * @param eventName - Event name
+   * @param listener - Event listener callback
+   * @returns This instance for chaining
+   */
+  on<K extends TapSdkEventName>(eventName: K, listener: TapSdkEventListener<K>): this {
+    const listeners =
+      (this._listeners[eventName] as Set<TapSdkEventListener<K>> | undefined) ??
+      new Set<TapSdkEventListener<K>>();
+    listeners.add(listener);
+    this._listeners[eventName] = listeners as (typeof this._listeners)[K];
+    return this;
+  }
+
+  /**
+   * Remove an event listener.
+   *
+   * @param eventName - Event name
+   * @param listener - Listener to remove
+   * @returns This instance for chaining
+   */
+  off<K extends TapSdkEventName>(eventName: K, listener: TapSdkEventListener<K>): this {
+    const listeners = this._listeners[eventName] as Set<TapSdkEventListener<K>> | undefined;
+    listeners?.delete(listener);
+    if (listeners?.size === 0) {
+      delete this._listeners[eventName];
+    }
+    return this;
+  }
+
+  /**
+   * Register a one-time event listener.
+   *
+   * @param eventName - Event name
+   * @param listener - Event listener callback
+   * @returns This instance for chaining
+   */
+  once<K extends TapSdkEventName>(eventName: K, listener: TapSdkEventListener<K>): this {
+    const wrapped: TapSdkEventListener<K> = (...args) => {
+      this.off(eventName, wrapped);
+      listener(...args);
+    };
+    return this.on(eventName, wrapped);
+  }
+
+  /**
+   * Remove all listeners, or all listeners for one event.
+   *
+   * @param eventName - Optional event name
+   * @returns This instance for chaining
+   */
+  removeAllListeners<K extends TapSdkEventName>(eventName?: K): this {
+    if (eventName) {
+      delete this._listeners[eventName];
+    } else {
+      for (const key of Object.keys(this._listeners) as TapSdkEventName[]) {
+        delete this._listeners[key];
+      }
+    }
+    return this;
+  }
+
+  private emit<K extends TapSdkEventName>(eventName: K, ...args: TapSdkEvents[K]): void {
+    const listeners = this._listeners[eventName] as Set<TapSdkEventListener<K>> | undefined;
+    if (!listeners || listeners.size === 0) {
+      return;
+    }
+    for (const listener of listeners) {
+      listener(...args);
+    }
   }
 
   /**
@@ -79,17 +165,6 @@ export class TapSdk {
    */
   getClientId(): string | null {
     return this._native.getClientId();
-  }
-
-  /**
-   * Poll for events from the SDK
-   *
-   * Call this regularly (e.g., in your game loop) to receive events.
-   *
-   * @returns Array of events that occurred since the last poll
-   */
-  runCallbacks(): TapEvent[] {
-    return this._native.runCallbacks();
   }
 
   /**
@@ -141,11 +216,12 @@ export class TapSdk {
   }
 
   /**
-   * Shut down the SDK
+   * Shut down the SDK and stop the background event loop.
    *
    * This releases all resources. The SDK instance cannot be used after this.
    */
   shutdown(): void {
     this._native.shutdown();
+    this.removeAllListeners();
   }
 }

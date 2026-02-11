@@ -88,39 +88,6 @@ getClientId(): string | null
 
 ---
 
-### runCallbacks()
-
-Poll for events from the SDK. Call this regularly in your game loop.
-
-```typescript
-runCallbacks(): TapEvent[]
-```
-
-**Returns:** Array of events that occurred since the last poll
-
-**Example:**
-```typescript
-function gameLoop() {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    switch (event.eventId) {
-      case EventId.SYSTEM_STATE_CHANGED:
-        handleSystemState(event);
-        break;
-      case EventId.AUTHORIZE_FINISHED:
-        handleAuth(event);
-        break;
-      // ... handle other events
-    }
-  }
-  
-  requestAnimationFrame(gameLoop);
-}
-```
-
----
-
 ### authorize()
 
 Request user authorization.
@@ -136,15 +103,14 @@ authorize(scopes: string): void
 ```typescript
 sdk.authorize('public_profile');
 
-// Handle the result in runCallbacks()
-const events = sdk.runCallbacks();
-for (const event of events) {
+// Handle the result via events
+sdk.on('event', (event) => {
   if (event.eventId === EventId.AUTHORIZE_FINISHED) {
     if (event.token) {
       console.log('Authorized! OpenID:', sdk.getOpenId());
     }
   }
-}
+});
 ```
 
 ---
@@ -265,30 +231,27 @@ if (!sdk.isGameOwned()) {
 // 4. Request authorization
 sdk.authorize('public_profile');
 
-// 5. Game loop
-let running = true;
-while (running) {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    switch (event.eventId) {
-      case EventId.SYSTEM_STATE_CHANGED:
-        if (event.state === SystemState.PLATFORM_SHUTDOWN) {
-          running = false;
-        }
-        break;
-        
-      case EventId.AUTHORIZE_FINISHED:
-        if (event.token) {
-          console.log('OpenID:', sdk.getOpenId());
-        }
-        break;
-    }
+// 5. Listen for events (automatically polled in background)
+sdk.on('event', (event) => {
+  switch (event.eventId) {
+    case EventId.SYSTEM_STATE_CHANGED:
+      if (event.state === SystemState.PLATFORM_SHUTDOWN) {
+        sdk.shutdown();
+        process.exit(0);
+      }
+      break;
+      
+    case EventId.AUTHORIZE_FINISHED:
+      if (event.token) {
+        console.log('OpenID:', sdk.getOpenId());
+      }
+      break;
   }
-  
-  // Your game update logic here...
-}
+});
 
-// 6. Cleanup
-sdk.shutdown();
+// 6. Cleanup on exit
+process.on('SIGINT', () => {
+  sdk.shutdown();
+  process.exit(0);
+});
 ```

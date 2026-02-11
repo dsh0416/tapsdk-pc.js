@@ -28,4 +28,5 @@ export {
   type CloudSaveGetCoverEvent,
   type UnknownEvent,
   type TapEvent,
+  type TapSdkEvents,
 } from './types.js';

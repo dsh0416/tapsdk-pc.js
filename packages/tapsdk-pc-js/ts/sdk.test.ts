@@ -129,7 +129,6 @@ describe('CloudSave', () => {
 describe('TapSdk Prototype Methods', () => {
   const methods = [
     'getClientId',
-    'runCallbacks',
     'authorize',
     'getOpenId',
     'isGameOwned',

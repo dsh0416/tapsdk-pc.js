@@ -1,6 +1,6 @@
 # Events
 
-The TapTap PC SDK uses an event-driven architecture. Events are received by calling `sdk.runCallbacks()` in your game loop.
+The TapTap PC SDK uses an event-driven architecture. Events are automatically polled in a background thread and delivered via the `'event'` event on the `TapSdk` instance.
 
 ## Event Overview
 
@@ -9,21 +9,17 @@ import { TapSdk, EventId, SystemState } from 'tapsdk-pc';
 
 const sdk = new TapSdk('your_public_key');
 
-function gameLoop() {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    switch (event.eventId) {
-      case EventId.SYSTEM_STATE_CHANGED:
-        // Handle system state
-        break;
-      case EventId.AUTHORIZE_FINISHED:
-        // Handle authorization result
-        break;
-      // ... other events
-    }
+sdk.on('event', (event) => {
+  switch (event.eventId) {
+    case EventId.SYSTEM_STATE_CHANGED:
+      // Handle system state
+      break;
+    case EventId.AUTHORIZE_FINISHED:
+      // Handle authorization result
+      break;
+    // ... other events
   }
-}
+});
 ```
 
 ## Event IDs

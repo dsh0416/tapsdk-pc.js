@@ -1,15 +1,20 @@
 //! Node.js bindings for TapTap PC SDK
 //!
 //! This crate provides NAPI-RS bindings to expose the TapTap PC SDK to Node.js.
+//! Events are pushed to JavaScript automatically via a background polling thread.
 
 #![deny(clippy::all)]
 
 use napi::bindgen_prelude::*;
+use napi::threadsafe_function::{ThreadsafeFunctionCallMode, ThreadsafeFunction};
 use napi_derive::napi;
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use tapsdk_pc::callback::CloudSaveInfo as RustCloudSaveInfo;
+use tapsdk_pc::callback::TapEvent;
 use tapsdk_pc::error::SystemState;
 
 #[napi]
@@ -221,10 +226,89 @@ pub struct UnknownEvent {
     pub event_id: u32,
 }
 
+/// Convert a TapEvent into a serde_json::Value for passing to JavaScript
+fn convert_event_to_json(event: TapEvent) -> serde_json::Result<serde_json::Value> {
+    match event {
+        TapEvent::SystemStateChanged(data) => serde_json::to_value(SystemStateChangedEvent {
+            event_id: event_id::SYSTEM_STATE_CHANGED,
+            state: system_state_to_u32(data.state),
+        }),
+        TapEvent::AuthorizeFinished(data) => serde_json::to_value(AuthorizeFinishedEvent {
+            event_id: event_id::AUTHORIZE_FINISHED,
+            is_cancel: data.is_cancel,
+            error: data.error,
+            token: data.token.map(|t| AuthToken {
+                token_type: t.token_type,
+                kid: t.kid,
+                mac_key: t.mac_key,
+                mac_algorithm: t.mac_algorithm,
+                scope: t.scope,
+            }),
+        }),
+        TapEvent::GamePlayableStatusChanged(data) => {
+            serde_json::to_value(GamePlayableStatusChangedEvent {
+                event_id: event_id::GAME_PLAYABLE_STATUS_CHANGED,
+                is_playable: data.is_playable,
+            })
+        }
+        TapEvent::DlcPlayableStatusChanged(data) => {
+            serde_json::to_value(DlcPlayableStatusChangedEvent {
+                event_id: event_id::DLC_PLAYABLE_STATUS_CHANGED,
+                dlc_id: data.dlc_id,
+                is_playable: data.is_playable,
+            })
+        }
+        TapEvent::CloudSaveList(data) => serde_json::to_value(CloudSaveListEvent {
+            event_id: event_id::CLOUD_SAVE_LIST,
+            request_id: data.request_id,
+            error: data.error.map(|(code, message)| SdkError { code, message }),
+            saves: data.saves.into_iter().map(CloudSaveInfo::from).collect(),
+        }),
+        TapEvent::CloudSaveCreate(data) => serde_json::to_value(CloudSaveCreateEvent {
+            event_id: event_id::CLOUD_SAVE_CREATE,
+            request_id: data.request_id,
+            error: data.error.map(|(code, message)| SdkError { code, message }),
+            save: data.save.map(CloudSaveInfo::from),
+        }),
+        TapEvent::CloudSaveUpdate(data) => serde_json::to_value(CloudSaveCreateEvent {
+            event_id: event_id::CLOUD_SAVE_UPDATE,
+            request_id: data.request_id,
+            error: data.error.map(|(code, message)| SdkError { code, message }),
+            save: data.save.map(CloudSaveInfo::from),
+        }),
+        TapEvent::CloudSaveDelete(data) => serde_json::to_value(CloudSaveDeleteEvent {
+            event_id: event_id::CLOUD_SAVE_DELETE,
+            request_id: data.request_id,
+            error: data.error.map(|(code, message)| SdkError { code, message }),
+            uuid: data.uuid,
+        }),
+        TapEvent::CloudSaveGetData(data) => serde_json::to_value(CloudSaveGetFileEvent {
+            event_id: event_id::CLOUD_SAVE_GET_DATA,
+            request_id: data.request_id,
+            error: data.error.map(|(code, message)| SdkError { code, message }),
+            data: Buffer::from(data.data),
+        }),
+        TapEvent::CloudSaveGetCover(data) => serde_json::to_value(CloudSaveGetFileEvent {
+            event_id: event_id::CLOUD_SAVE_GET_COVER,
+            request_id: data.request_id,
+            error: data.error.map(|(code, message)| SdkError { code, message }),
+            data: Buffer::from(data.data),
+        }),
+        TapEvent::Unknown { event_id: id } => {
+            serde_json::to_value(UnknownEvent { event_id: id })
+        }
+    }
+}
+
 /// TapTap PC SDK wrapper for Node.js
+///
+/// Events are automatically pushed to the provided callback via a background
+/// polling thread. There is no need to call `runCallbacks()` manually.
 #[napi]
 pub struct TapSdk {
     inner: Option<tapsdk_pc::TapSdk>,
+    running: Arc<AtomicBool>,
+    handle: Option<std::thread::JoinHandle<()>>,
 }
 
 #[napi]
@@ -238,12 +322,56 @@ impl TapSdk {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Initialize the SDK
-    #[napi(constructor)]
-    pub fn new(pub_key: String) -> Result<Self> {
+    /// Initialize the SDK and start the background event loop.
+    ///
+    /// The provided callback will be called with each event as it arrives.
+    #[napi(constructor, ts_args_type = "pubKey: string, callback: (event: any) => void")]
+    pub fn new(pub_key: String, callback: Function<'_, serde_json::Value, ()>) -> Result<Self> {
         let inner =
             tapsdk_pc::TapSdk::init(&pub_key).map_err(|e| Error::from_reason(e.to_string()))?;
-        Ok(TapSdk { inner: Some(inner) })
+
+        // Create a threadsafe function from the JS callback so we can call it
+        // from the background thread.
+        let tsfn: ThreadsafeFunction<serde_json::Value, ()> = callback
+            .build_threadsafe_function()
+            .callee_handled::<true>()
+            .build()?;
+
+        let running = Arc::new(AtomicBool::new(true));
+        let running_clone = running.clone();
+
+        // Spawn a background thread with a tokio runtime that periodically
+        // polls the C SDK for events and pushes them to JavaScript.
+        let handle = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .expect("Failed to create tokio runtime for event loop");
+
+            rt.block_on(async {
+                let mut interval =
+                    tokio::time::interval(std::time::Duration::from_millis(50));
+
+                while running_clone.load(Ordering::Relaxed) {
+                    interval.tick().await;
+                    let events = tapsdk_pc::callback::poll_events();
+                    for event in events {
+                        if let Ok(js_event) = convert_event_to_json(event) {
+                            tsfn.call(
+                                Ok(js_event),
+                                ThreadsafeFunctionCallMode::NonBlocking,
+                            );
+                        }
+                    }
+                }
+            });
+        });
+
+        Ok(TapSdk {
+            inner: Some(inner),
+            running,
+            handle: Some(handle),
+        })
     }
 
     /// Get the client ID
@@ -256,115 +384,6 @@ impl TapSdk {
     #[napi]
     pub fn is_initialized() -> bool {
         tapsdk_pc::is_initialized()
-    }
-
-    /// Poll for events from the SDK
-    ///
-    /// Call this regularly (e.g., in your game loop) to receive events.
-    /// Returns an array of event objects with different types based on event_id.
-    #[napi(
-        ts_return_type = "Array<SystemStateChangedEvent | AuthorizeFinishedEvent | GamePlayableStatusChangedEvent | DlcPlayableStatusChangedEvent | CloudSaveListEvent | CloudSaveCreateEvent | CloudSaveDeleteEvent | CloudSaveGetFileEvent | UnknownEvent>"
-    )]
-    pub fn run_callbacks(&self) -> Result<Vec<serde_json::Value>> {
-        let inner = self
-            .inner
-            .as_ref()
-            .ok_or_else(|| Error::from_reason("SDK has been shut down"))?;
-
-        let events = inner.run_callbacks();
-        let mut result = Vec::with_capacity(events.len());
-
-        for event in events {
-            let js_event = match event {
-                tapsdk_pc::callback::TapEvent::SystemStateChanged(data) => {
-                    serde_json::to_value(&SystemStateChangedEvent {
-                        event_id: event_id::SYSTEM_STATE_CHANGED,
-                        state: system_state_to_u32(data.state),
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::AuthorizeFinished(data) => {
-                    serde_json::to_value(&AuthorizeFinishedEvent {
-                        event_id: event_id::AUTHORIZE_FINISHED,
-                        is_cancel: data.is_cancel,
-                        error: data.error,
-                        token: data.token.map(|t| AuthToken {
-                            token_type: t.token_type,
-                            kid: t.kid,
-                            mac_key: t.mac_key,
-                            mac_algorithm: t.mac_algorithm,
-                            scope: t.scope,
-                        }),
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::GamePlayableStatusChanged(data) => {
-                    serde_json::to_value(&GamePlayableStatusChangedEvent {
-                        event_id: event_id::GAME_PLAYABLE_STATUS_CHANGED,
-                        is_playable: data.is_playable,
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::DlcPlayableStatusChanged(data) => {
-                    serde_json::to_value(&DlcPlayableStatusChangedEvent {
-                        event_id: event_id::DLC_PLAYABLE_STATUS_CHANGED,
-                        dlc_id: data.dlc_id,
-                        is_playable: data.is_playable,
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::CloudSaveList(data) => {
-                    serde_json::to_value(&CloudSaveListEvent {
-                        event_id: event_id::CLOUD_SAVE_LIST,
-                        request_id: data.request_id,
-                        error: data.error.map(|(code, message)| SdkError { code, message }),
-                        saves: data.saves.into_iter().map(CloudSaveInfo::from).collect(),
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::CloudSaveCreate(data) => {
-                    serde_json::to_value(&CloudSaveCreateEvent {
-                        event_id: event_id::CLOUD_SAVE_CREATE,
-                        request_id: data.request_id,
-                        error: data.error.map(|(code, message)| SdkError { code, message }),
-                        save: data.save.map(CloudSaveInfo::from),
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::CloudSaveUpdate(data) => {
-                    serde_json::to_value(&CloudSaveCreateEvent {
-                        event_id: event_id::CLOUD_SAVE_UPDATE,
-                        request_id: data.request_id,
-                        error: data.error.map(|(code, message)| SdkError { code, message }),
-                        save: data.save.map(CloudSaveInfo::from),
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::CloudSaveDelete(data) => {
-                    serde_json::to_value(&CloudSaveDeleteEvent {
-                        event_id: event_id::CLOUD_SAVE_DELETE,
-                        request_id: data.request_id,
-                        error: data.error.map(|(code, message)| SdkError { code, message }),
-                        uuid: data.uuid,
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::CloudSaveGetData(data) => {
-                    serde_json::to_value(&CloudSaveGetFileEvent {
-                        event_id: event_id::CLOUD_SAVE_GET_DATA,
-                        request_id: data.request_id,
-                        error: data.error.map(|(code, message)| SdkError { code, message }),
-                        data: Buffer::from(data.data),
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::CloudSaveGetCover(data) => {
-                    serde_json::to_value(&CloudSaveGetFileEvent {
-                        event_id: event_id::CLOUD_SAVE_GET_COVER,
-                        request_id: data.request_id,
-                        error: data.error.map(|(code, message)| SdkError { code, message }),
-                        data: Buffer::from(data.data),
-                    })?
-                }
-                tapsdk_pc::callback::TapEvent::Unknown { event_id: id } => {
-                    serde_json::to_value(&UnknownEvent { event_id: id })?
-                }
-            };
-            result.push(js_event);
-        }
-
-        Ok(result)
     }
 
     /// Request user authorization
@@ -397,12 +416,32 @@ impl TapSdk {
         tapsdk_pc::dlc::show_dlc_store(&dlc_id).map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Shut down the SDK
+    /// Shut down the SDK and stop the background event loop.
     #[napi]
     pub fn shutdown(&mut self) {
+        // Signal the background thread to stop
+        self.running.store(false, Ordering::Relaxed);
+
+        // Wait for the background thread to finish
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+
+        // Shut down the underlying SDK
         if let Some(inner) = self.inner.take() {
             inner.shutdown();
         }
+    }
+}
+
+impl Drop for TapSdk {
+    fn drop(&mut self) {
+        // Ensure the background thread is stopped if shutdown() wasn't called
+        self.running.store(false, Ordering::Relaxed);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+        // inner's Drop will handle TapSDK_Shutdown() if not already taken
     }
 }
 

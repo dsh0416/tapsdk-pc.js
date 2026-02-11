@@ -54,9 +54,8 @@ if (!sdk.isGameOwned()) {
   process.exit(1);
 }
 
-// Poll for events in your game loop
-const events = sdk.runCallbacks();
-for (const event of events) {
+// Listen for events (automatically polled in background)
+sdk.on('event', (event) => {
   // Handle events...
-}
+});
 ```

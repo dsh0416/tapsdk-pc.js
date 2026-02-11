@@ -10,7 +10,7 @@ import { CloudSave } from 'tapsdk-pc';
 
 ## Getting Started
 
-CloudSave uses an asynchronous, event-driven pattern. You call methods with a `requestId`, then receive results through events in `runCallbacks()`.
+CloudSave uses an asynchronous, event-driven pattern. You call methods with a `requestId`, then receive results through events emitted by the `TapSdk` instance.
 
 ```typescript
 import { TapSdk, CloudSave, EventId } from 'tapsdk-pc';
@@ -18,12 +18,8 @@ import { TapSdk, CloudSave, EventId } from 'tapsdk-pc';
 const sdk = new TapSdk('your_public_key');
 const cloudSave = CloudSave.get();
 
-// Make a request
-cloudSave.list(1); // requestId = 1
-
-// Get the result via events
-const events = sdk.runCallbacks();
-for (const event of events) {
+// Listen for cloud save events
+sdk.on('event', (event) => {
   if (event.eventId === EventId.CLOUD_SAVE_LIST && event.requestId === 1) {
     if (event.error) {
       console.error('Failed:', event.error.message);
@@ -31,7 +27,10 @@ for (const event of events) {
       console.log(`Found ${event.saves.length} saves`);
     }
   }
-}
+});
+
+// Make a request
+cloudSave.list(1); // requestId = 1
 ```
 
 ## Static Methods
@@ -72,12 +71,14 @@ list(requestId: number): void
 ```typescript
 cloudSave.list(1);
 
-// Handle in runCallbacks()
-if (event.eventId === EventId.CLOUD_SAVE_LIST) {
-  for (const save of event.saves) {
-    console.log(`${save.name} - ${save.saveSize} bytes`);
+// Handle via event listener
+sdk.on('event', (event) => {
+  if (event.eventId === EventId.CLOUD_SAVE_LIST) {
+    for (const save of event.saves) {
+      console.log(`${save.name} - ${save.saveSize} bytes`);
+    }
   }
-}
+});
 ```
 
 ---
@@ -118,12 +119,14 @@ cloudSave.create(2, {
   coverFilePath: './saves/screenshot.png',
 });
 
-// Handle in runCallbacks()
-if (event.eventId === EventId.CLOUD_SAVE_CREATE) {
-  if (event.save) {
-    console.log('Save created with UUID:', event.save.uuid);
+// Handle via event listener
+sdk.on('event', (event) => {
+  if (event.eventId === EventId.CLOUD_SAVE_CREATE) {
+    if (event.save) {
+      console.log('Save created with UUID:', event.save.uuid);
+    }
   }
-}
+});
 ```
 
 ---
@@ -186,12 +189,14 @@ delete(requestId: number, uuid: string): void
 ```typescript
 cloudSave.delete(4, 'save-uuid-to-delete');
 
-// Handle in runCallbacks()
-if (event.eventId === EventId.CLOUD_SAVE_DELETE) {
-  if (!event.error) {
-    console.log('Deleted save:', event.uuid);
+// Handle via event listener
+sdk.on('event', (event) => {
+  if (event.eventId === EventId.CLOUD_SAVE_DELETE) {
+    if (!event.error) {
+      console.log('Deleted save:', event.uuid);
+    }
   }
-}
+});
 ```
 
 ---
@@ -219,13 +224,15 @@ const saveInfo = event.saves[0];
 // Then download the data
 cloudSave.getData(5, saveInfo.uuid, saveInfo.fileId);
 
-// Handle in runCallbacks()
-if (event.eventId === EventId.CLOUD_SAVE_GET_DATA) {
-  if (event.data) {
-    // event.data is a Buffer containing the save file
-    fs.writeFileSync('./saves/downloaded.dat', event.data);
+// Handle via event listener
+sdk.on('event', (event) => {
+  if (event.eventId === EventId.CLOUD_SAVE_GET_DATA) {
+    if (event.data) {
+      // event.data is a Buffer containing the save file
+      fs.writeFileSync('./saves/downloaded.dat', event.data);
+    }
   }
-}
+});
 ```
 
 ---
@@ -249,12 +256,14 @@ getCover(requestId: number, uuid: string, fileId: string): void
 ```typescript
 cloudSave.getCover(6, saveInfo.uuid, saveInfo.fileId);
 
-// Handle in runCallbacks()
-if (event.eventId === EventId.CLOUD_SAVE_GET_COVER) {
-  if (event.data) {
-    fs.writeFileSync('./saves/cover.png', event.data);
+// Handle via event listener
+sdk.on('event', (event) => {
+  if (event.eventId === EventId.CLOUD_SAVE_GET_COVER) {
+    if (event.data) {
+      fs.writeFileSync('./saves/cover.png', event.data);
+    }
   }
-}
+});
 ```
 
 ## CloudSaveInfo
@@ -312,42 +321,35 @@ function downloadSave(save: CloudSaveInfo) {
   cloudSave.getData(id, save.uuid, save.fileId);
 }
 
-// Game loop
-function update() {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    switch (event.eventId) {
-      case EventId.CLOUD_SAVE_LIST:
-        console.log(`Found ${event.saves.length} cloud saves:`);
-        for (const save of event.saves) {
-          console.log(`  - ${save.name} (${save.uuid})`);
-        }
-        break;
-        
-      case EventId.CLOUD_SAVE_CREATE:
-        if (event.save) {
-          console.log('Created save:', event.save.uuid);
-        } else if (event.error) {
-          console.error('Create failed:', event.error.message);
-        }
-        break;
-        
-      case EventId.CLOUD_SAVE_GET_DATA:
-        if (event.data) {
-          fs.writeFileSync('./downloaded_save.dat', event.data);
-          console.log('Save downloaded successfully');
-        }
-        break;
-    }
+// Handle events (automatically polled in background)
+sdk.on('event', (event) => {
+  switch (event.eventId) {
+    case EventId.CLOUD_SAVE_LIST:
+      console.log(`Found ${event.saves.length} cloud saves:`);
+      for (const save of event.saves) {
+        console.log(`  - ${save.name} (${save.uuid})`);
+      }
+      break;
+      
+    case EventId.CLOUD_SAVE_CREATE:
+      if (event.save) {
+        console.log('Created save:', event.save.uuid);
+      } else if (event.error) {
+        console.error('Create failed:', event.error.message);
+      }
+      break;
+      
+    case EventId.CLOUD_SAVE_GET_DATA:
+      if (event.data) {
+        fs.writeFileSync('./downloaded_save.dat', event.data);
+        console.log('Save downloaded successfully');
+      }
+      break;
   }
-  
-  setTimeout(update, 100);
-}
+});
 
 // Start
 listSaves();
-update();
 ```
 
 ## Limits and Constraints

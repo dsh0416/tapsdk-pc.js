@@ -187,3 +187,8 @@ export const SystemState = {
 } as const;
 
 export type SystemState = (typeof SystemState)[keyof typeof SystemState];
+
+/** Event map for typed EventEmitter usage */
+export interface TapSdkEvents {
+  event: [TapEvent];
+}

@@ -30,30 +30,16 @@ if (!sdk.isGameOwned()) {
 }
 console.log('Game ownership verified');
 
-// Game loop
-let running = true;
-
-function gameLoop() {
-  if (!running) return;
-  
-  // Poll for events
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    if (event.eventId === EventId.SYSTEM_STATE_CHANGED) {
-      if (event.state === SystemState.PLATFORM_SHUTDOWN) {
-        console.log('TapTap shutting down, exiting...');
-        running = false;
-      }
+// Listen for events (automatically polled in background)
+sdk.on('event', (event) => {
+  if (event.eventId === EventId.SYSTEM_STATE_CHANGED) {
+    if (event.state === SystemState.PLATFORM_SHUTDOWN) {
+      console.log('TapTap shutting down, exiting...');
+      sdk.shutdown();
+      process.exit(0);
     }
   }
-  
-  // Continue loop
-  setTimeout(gameLoop, 16);
-}
-
-// Start game loop
-gameLoop();
+});
 
 // Cleanup on exit
 process.on('SIGINT', () => {
@@ -88,43 +74,32 @@ if (!sdk.isGameOwned()) {
 console.log('Requesting user authorization...');
 sdk.authorize('public_profile');
 
-// Handle events
-let authorized = false;
-
-function update() {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    switch (event.eventId) {
-      case EventId.AUTHORIZE_FINISHED:
-        if (event.token) {
-          authorized = true;
-          const openId = sdk.getOpenId();
-          console.log('Authorization successful!');
-          console.log('User OpenID:', openId);
-          console.log('Token type:', event.token.tokenType);
-          console.log('Scopes:', event.token.scope);
-        } else if (event.isCancel) {
-          console.log('User cancelled authorization');
-        } else if (event.error) {
-          console.error('Authorization error:', event.error);
-        }
-        break;
-        
-      case EventId.SYSTEM_STATE_CHANGED:
-        console.log('System state:', event.state);
-        if (event.state === SystemState.PLATFORM_SHUTDOWN) {
-          sdk.shutdown();
-          process.exit(0);
-        }
-        break;
-    }
+// Handle events (automatically polled in background)
+sdk.on('event', (event) => {
+  switch (event.eventId) {
+    case EventId.AUTHORIZE_FINISHED:
+      if (event.token) {
+        const openId = sdk.getOpenId();
+        console.log('Authorization successful!');
+        console.log('User OpenID:', openId);
+        console.log('Token type:', event.token.tokenType);
+        console.log('Scopes:', event.token.scope);
+      } else if (event.isCancel) {
+        console.log('User cancelled authorization');
+      } else if (event.error) {
+        console.error('Authorization error:', event.error);
+      }
+      break;
+      
+    case EventId.SYSTEM_STATE_CHANGED:
+      console.log('System state:', event.state);
+      if (event.state === SystemState.PLATFORM_SHUTDOWN) {
+        sdk.shutdown();
+        process.exit(0);
+      }
+      break;
   }
-  
-  setTimeout(update, 100);
-}
-
-update();
+});
 ```
 
 ## DLC Management
@@ -169,29 +144,21 @@ for (const dlc of dlcs) {
   }
 }
 
-// Listen for ownership changes
-function update() {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    if (event.eventId === EventId.DLC_PLAYABLE_STATUS_CHANGED) {
-      const dlc = dlcs.find(d => d.id === event.dlcId);
-      const name = dlc?.name || event.dlcId;
-      
-      if (event.isPlayable) {
-        console.log(`${name} is now available!`);
-        // Enable DLC content
-      } else {
-        console.log(`${name} is no longer available`);
-        // Disable DLC content
-      }
+// Listen for ownership changes (automatically polled in background)
+sdk.on('event', (event) => {
+  if (event.eventId === EventId.DLC_PLAYABLE_STATUS_CHANGED) {
+    const dlc = dlcs.find(d => d.id === event.dlcId);
+    const name = dlc?.name || event.dlcId;
+    
+    if (event.isPlayable) {
+      console.log(`${name} is now available!`);
+      // Enable DLC content
+    } else {
+      console.log(`${name} is no longer available`);
+      // Disable DLC content
     }
   }
-  
-  setTimeout(update, 100);
-}
-
-update();
+});
 ```
 
 ## Cloud Save Integration
@@ -316,24 +283,17 @@ async function deleteSave(uuid: string): Promise<void> {
   });
 }
 
-// Event handler
-function handleEvents() {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    // Check if this is a cloud save event with a request ID
-    if ('requestId' in event) {
-      const pending = pendingRequests.get(event.requestId);
-      if (pending) {
-        pendingRequests.delete(event.requestId);
-        pending.callback(event);
-      }
+// Handle cloud save events (automatically polled in background)
+sdk.on('event', (event) => {
+  // Check if this is a cloud save event with a request ID
+  if ('requestId' in event) {
+    const pending = pendingRequests.get(event.requestId);
+    if (pending) {
+      pendingRequests.delete(event.requestId);
+      pending.callback(event);
     }
   }
-}
-
-// Main loop
-setInterval(handleEvents, 50);
+});
 
 // Demo usage
 async function demo() {
@@ -411,30 +371,20 @@ app.whenReady().then(() => {
   
   mainWindow.loadFile('index.html');
   
-  // Start event polling
-  startEventLoop();
-});
-
-function startEventLoop() {
-  setInterval(() => {
-    if (!sdk) return;
+  // Listen for events (automatically polled in background)
+  sdk.on('event', (event) => {
+    // Send events to renderer
+    mainWindow?.webContents.send('tap-event', event);
     
-    const events = sdk.runCallbacks();
-    
-    for (const event of events) {
-      // Send events to renderer
-      mainWindow?.webContents.send('tap-event', event);
-      
-      // Handle system shutdown
-      if (event.eventId === EventId.SYSTEM_STATE_CHANGED) {
-        if (event.state === SystemState.PLATFORM_SHUTDOWN) {
-          sdk?.shutdown();
-          app.quit();
-        }
+    // Handle system shutdown
+    if (event.eventId === EventId.SYSTEM_STATE_CHANGED) {
+      if (event.state === SystemState.PLATFORM_SHUTDOWN) {
+        sdk?.shutdown();
+        app.quit();
       }
     }
-  }, 50);
-}
+  });
+});
 
 // IPC handlers
 ipcMain.handle('tap:authorize', () => {

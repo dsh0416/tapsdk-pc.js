@@ -44,7 +44,7 @@ import {
 | `new TapSdk(pubKey)` | Initialize the SDK |
 | `TapSdk.isInitialized()` | Check if SDK is initialized |
 | `sdk.getClientId()` | Get the client ID |
-| `sdk.runCallbacks()` | Poll for events |
+| `sdk.on('event', cb)` | Listen for events |
 | `sdk.authorize(scopes)` | Request user authorization |
 | `sdk.getOpenId()` | Get user's OpenID |
 | `sdk.isGameOwned()` | Check if user owns game |

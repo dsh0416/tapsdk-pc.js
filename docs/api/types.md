@@ -322,11 +322,10 @@ function isCloudSaveEvent(event: TapEvent): boolean {
 }
 
 // Usage
-const events = sdk.runCallbacks();
-for (const event of events) {
+sdk.on('event', (event) => {
   if (isAuthEvent(event)) {
     // TypeScript knows event is AuthorizeFinishedEvent here
     console.log('Token:', event.token);
   }
-}
+});
 ```

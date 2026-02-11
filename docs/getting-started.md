@@ -65,48 +65,39 @@ console.log('Game ownership verified!');
 
 ### 4. Handle Events
 
-The SDK uses an event-driven architecture. You need to poll for events regularly in your game loop:
+The SDK uses an event-driven architecture. Events are automatically polled in a background thread and delivered via the `'event'` event:
 
 ```typescript
 import { TapSdk, EventId, SystemState } from 'tapsdk-pc';
 
-function gameLoop() {
-  const events = sdk.runCallbacks();
-  
-  for (const event of events) {
-    switch (event.eventId) {
-      case EventId.SYSTEM_STATE_CHANGED:
-        if (event.state === SystemState.PLATFORM_SHUTDOWN) {
-          // TapTap is shutting down - save and exit
-          sdk.shutdown();
-          process.exit(0);
-        }
-        break;
-        
-      case EventId.AUTHORIZE_FINISHED:
-        if (event.token) {
-          console.log('User authorized!');
-          console.log('OpenID:', sdk.getOpenId());
-        } else if (event.error) {
-          console.error('Authorization failed:', event.error);
-        } else if (event.isCancel) {
-          console.log('User cancelled authorization');
-        }
-        break;
-        
-      case EventId.GAME_PLAYABLE_STATUS_CHANGED:
-        if (!event.isPlayable) {
-          console.log('Game is no longer playable');
-        }
-        break;
-    }
+sdk.on('event', (event) => {
+  switch (event.eventId) {
+    case EventId.SYSTEM_STATE_CHANGED:
+      if (event.state === SystemState.PLATFORM_SHUTDOWN) {
+        // TapTap is shutting down - save and exit
+        sdk.shutdown();
+        process.exit(0);
+      }
+      break;
+      
+    case EventId.AUTHORIZE_FINISHED:
+      if (event.token) {
+        console.log('User authorized!');
+        console.log('OpenID:', sdk.getOpenId());
+      } else if (event.error) {
+        console.error('Authorization failed:', event.error);
+      } else if (event.isCancel) {
+        console.log('User cancelled authorization');
+      }
+      break;
+      
+    case EventId.GAME_PLAYABLE_STATUS_CHANGED:
+      if (!event.isPlayable) {
+        console.log('Game is no longer playable');
+      }
+      break;
   }
-  
-  // Continue game loop...
-  setTimeout(gameLoop, 16); // ~60fps
-}
-
-gameLoop();
+});
 ```
 
 ### 5. Request User Authorization (Optional)
