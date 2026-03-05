@@ -10,6 +10,6 @@
     "docs:build": "pnpm --filter tapsdk-pc-docs build"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.0"
+    "@changesets/cli": "^2.30.0"
   }
 }
