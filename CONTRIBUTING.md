@@ -6,9 +6,8 @@ Thank you for your interest in contributing! This document provides guidelines a
 
 ### Prerequisites
 
-- **Rust** (stable toolchain)
-- **Node.js** >= 20
-- **pnpm** >= 9
+- **mise** for project toolchain management
+- Project tools installed via `mise install` (Node.js 24, pnpm 10.28.2, Rust stable)
 - **LLVM/Clang** (for bindgen)
 - **Windows** x64 (required for building the native module)
 
@@ -20,23 +19,28 @@ Thank you for your interest in contributing! This document provides guidelines a
    cd tapsdk-pc-js
    ```
 
-2. Install dependencies:
+2. Install project tools:
+   ```bash
+   mise install
+   ```
+
+3. Install dependencies:
    ```bash
    pnpm install
    ```
 
-3. Build the Rust crates:
+4. Build the Rust crates:
    ```bash
    cargo build --workspace
    ```
 
-4. Build the Node.js module:
+5. Build the Node.js module:
    ```bash
    cd packages/tapsdk-pc-js
    pnpm run build
    ```
 
-5. Run the documentation site locally:
+6. Run the documentation site locally:
    ```bash
    pnpm docs:dev
    ```

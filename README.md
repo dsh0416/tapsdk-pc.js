@@ -67,7 +67,7 @@ sdk.on('event', (event) => {
         console.log('Authorized! OpenID:', sdk.getOpenId());
       }
       break;
-      
+
     case EventId.SYSTEM_STATE_CHANGED:
       if (event.state === SystemState.PLATFORM_SHUTDOWN) {
         sdk.shutdown();
@@ -158,36 +158,41 @@ tapsdk-pc-js/
 
 ## Prerequisites
 
-- **Node.js** >= 20
-- **pnpm** >= 9 (recommended) or npm/yarn
+- **mise** for project toolchain management
 - **Windows** x64
 - **TapTap Client** installed and running
 - For building from source:
-  - **Rust** (stable toolchain)
+  - Project tools installed via `mise install` (Node.js 24, pnpm 10.28.2, Rust stable)
   - **LLVM/Clang** (for bindgen)
 
 ## Building from Source
 
-### 1. Install dependencies
+### 1. Install project tools
+
+```bash
+mise install
+```
+
+### 2. Install dependencies
 
 ```bash
 pnpm install
 ```
 
-### 2. Build Rust crates
+### 3. Build Rust crates
 
 ```bash
 cargo build --workspace --release
 ```
 
-### 3. Build Node.js module
+### 4. Build Node.js module
 
 ```bash
 cd packages/tapsdk-pc-js
 pnpm run build
 ```
 
-### 4. Run documentation locally
+### 5. Run documentation locally
 
 ```bash
 pnpm docs:dev
