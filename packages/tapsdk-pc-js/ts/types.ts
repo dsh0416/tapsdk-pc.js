@@ -46,79 +46,6 @@ export interface PaymentLimitResponse {
   description: string;
 }
 
-/** Leaderboard collection type */
-export const LeaderboardCollection = {
-  PUBLIC: 0,
-  FRIENDS: 1,
-} as const;
-
-export type LeaderboardCollection =
-  (typeof LeaderboardCollection)[keyof typeof LeaderboardCollection];
-
-/** Leaderboard score item to submit */
-export interface LeaderboardScoreItem {
-  leaderboardId: string;
-  score: number;
-}
-
-/** Leaderboard period information */
-export interface LeaderboardPeriod {
-  periodToken: string;
-  display: string;
-}
-
-/** Leaderboard user information */
-export interface LeaderboardUserInfo {
-  openId: string;
-  unionId: string;
-  name: string;
-  avatar: string;
-}
-
-/** Leaderboard score information */
-export interface LeaderboardScore {
-  rank: number;
-  score: number;
-  user: LeaderboardUserInfo;
-  scoreSubmittedTime: number;
-}
-
-/** Leaderboard information */
-export interface LeaderboardInfo {
-  id: string;
-  name: string;
-  period?: LeaderboardPeriod;
-  availablePeriods: LeaderboardPeriod[];
-}
-
-/** Request to load leaderboard scores */
-export interface LoadScoresRequest {
-  leaderboardId: string;
-  collection: LeaderboardCollection;
-  continuationToken?: string;
-  periodToken?: string;
-}
-
-/** Request to load current user's score */
-export interface LoadMyScoresRequest {
-  leaderboardId: string;
-  collection: LeaderboardCollection;
-  periodToken?: string;
-}
-
-/** Request to load scores near current user */
-export interface LoadMyCenteredScoresRequest {
-  leaderboardId: string;
-  collection: LeaderboardCollection;
-  maxResults: number;
-}
-
-/** Request to open leaderboards page */
-export interface ShowLeaderboardRequest {
-  leaderboardId: string;
-  collection: LeaderboardCollection;
-}
-
 /** Online game event ID constants */
 export const OnlineGameEventId = {
   UNKNOWN: 0,
@@ -367,58 +294,6 @@ export interface ComplianceActionsEvent {
   actions: ComplianceAction[];
 }
 
-/** Leaderboard submit score result data */
-export interface LeaderboardSubmitScoreResultData {
-  newBest: boolean;
-  rawScore: number;
-}
-
-/** Leaderboard submit score result */
-export interface LeaderboardSubmitScoreResult {
-  leaderboardId: string;
-  periodToken: string;
-  scoreResult?: LeaderboardSubmitScoreResultData;
-  openId: string;
-  unionId: string;
-}
-
-/** Leaderboard submit scores event */
-export interface LeaderboardSubmitScoresEvent {
-  eventId: typeof EventId.LEADERBOARD_SUBMIT_SCORES;
-  requestId: number;
-  error?: SdkError;
-  results: LeaderboardSubmitScoreResult[];
-}
-
-/** Leaderboard load scores event */
-export interface LeaderboardLoadScoresEvent {
-  eventId: typeof EventId.LEADERBOARD_LOAD_SCORES;
-  requestId: number;
-  error?: SdkError;
-  leaderboard?: LeaderboardInfo;
-  scores: LeaderboardScore[];
-  continuationToken?: string;
-  isTruncated: boolean;
-}
-
-/** Leaderboard load current user's score event */
-export interface LeaderboardLoadMyScoresEvent {
-  eventId: typeof EventId.LEADERBOARD_LOAD_MY_SCORES;
-  requestId: number;
-  error?: SdkError;
-  leaderboard?: LeaderboardInfo;
-  score?: LeaderboardScore;
-}
-
-/** Leaderboard load scores near current user event */
-export interface LeaderboardLoadMyCenteredScoresEvent {
-  eventId: typeof EventId.LEADERBOARD_LOAD_MY_CENTERED_SCORES;
-  requestId: number;
-  error?: SdkError;
-  leaderboard?: LeaderboardInfo;
-  scores: LeaderboardScore[];
-}
-
 /** Online game player information */
 export interface OnlineGamePlayerInfo {
   id: string;
@@ -483,10 +358,6 @@ export type TapEvent =
   | AchievementIncrementEvent
   | ComplianceEnsureRealNameEvent
   | ComplianceActionsEvent
-  | LeaderboardSubmitScoresEvent
-  | LeaderboardLoadScoresEvent
-  | LeaderboardLoadMyScoresEvent
-  | LeaderboardLoadMyCenteredScoresEvent
   | OnlineGameEvent
   | UnknownEvent;
 
@@ -509,10 +380,6 @@ export const EventId = {
   ACHIEVEMENT_INCREMENT: 7002,
   COMPLIANCE_ENSURE_REAL_NAME: 8001,
   COMPLIANCE_ACTIONS_EVENT: 8002,
-  LEADERBOARD_SUBMIT_SCORES: 9001,
-  LEADERBOARD_LOAD_SCORES: 9002,
-  LEADERBOARD_LOAD_MY_SCORES: 9003,
-  LEADERBOARD_LOAD_MY_CENTERED_SCORES: 9004,
   ONLINE_GAME_EVENT: 10001,
 } as const;
 

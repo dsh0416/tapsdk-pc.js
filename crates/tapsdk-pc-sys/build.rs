@@ -42,10 +42,6 @@ fn build_windows() {
         sdk_dir.display()
     );
     println!(
-        "cargo:rerun-if-changed={}/taptap_leaderboard.h",
-        sdk_dir.display()
-    );
-    println!(
         "cargo:rerun-if-changed={}/taptap_onlinegame.h",
         sdk_dir.display()
     );
@@ -80,7 +76,6 @@ fn build_windows() {
         .allowlist_function("TapAchievement.*")
         .allowlist_function("TapCloudSave.*")
         .allowlist_function("TapCompliance.*")
-        .allowlist_function("TapLeaderboard.*")
         .allowlist_function("TapOnlineGame.*")
         // Allow all types
         .allowlist_type(".*")

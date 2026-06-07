@@ -52,14 +52,6 @@ pub mod event_id {
     #[napi]
     pub const COMPLIANCE_ACTIONS_EVENT: u32 = 8002;
     #[napi]
-    pub const LEADERBOARD_SUBMIT_SCORES: u32 = 9001;
-    #[napi]
-    pub const LEADERBOARD_LOAD_SCORES: u32 = 9002;
-    #[napi]
-    pub const LEADERBOARD_LOAD_MY_SCORES: u32 = 9003;
-    #[napi]
-    pub const LEADERBOARD_LOAD_MY_CENTERED_SCORES: u32 = 9004;
-    #[napi]
     pub const ONLINE_GAME_EVENT: u32 = 10001;
 }
 
@@ -196,45 +188,6 @@ pub struct PaymentLimitResponse {
     pub allow: bool,
     pub title: String,
     pub description: String,
-}
-
-/// Leaderboard score item.
-#[napi(object)]
-pub struct LeaderboardScoreItem {
-    pub leaderboard_id: String,
-    pub score: i64,
-}
-
-/// Request to load leaderboard scores.
-#[napi(object)]
-pub struct LoadScoresRequest {
-    pub leaderboard_id: String,
-    pub collection: u32,
-    pub continuation_token: Option<String>,
-    pub period_token: Option<String>,
-}
-
-/// Request to load the current user's score.
-#[napi(object)]
-pub struct LoadMyScoresRequest {
-    pub leaderboard_id: String,
-    pub collection: u32,
-    pub period_token: Option<String>,
-}
-
-/// Request to load scores near the current user.
-#[napi(object)]
-pub struct LoadMyCenteredScoresRequest {
-    pub leaderboard_id: String,
-    pub collection: u32,
-    pub max_results: u32,
-}
-
-/// Request to open the leaderboards page.
-#[napi(object)]
-pub struct ShowLeaderboardRequest {
-    pub leaderboard_id: String,
-    pub collection: u32,
 }
 
 /// Online game room match parameter.
@@ -501,46 +454,6 @@ fn convert_event_to_json(event: TapEvent) -> serde_json::Result<serde_json::Valu
                 })
             }).collect::<Vec<_>>(),
         })),
-        TapEvent::LeaderboardSubmitScores(data) => Ok(json!({
-            "eventId": event_id::LEADERBOARD_SUBMIT_SCORES,
-            "requestId": data.request_id,
-            "error": data.error.map(|(code, message)| SdkError { code, message }),
-            "results": data.results.into_iter().map(|result| {
-                json!({
-                    "leaderboardId": result.leaderboard_id,
-                    "periodToken": result.period_token,
-                    "scoreResult": result.score_result.map(|score_result| json!({
-                        "newBest": score_result.new_best,
-                        "rawScore": score_result.raw_score,
-                    })),
-                    "openId": result.open_id,
-                    "unionId": result.union_id,
-                })
-            }).collect::<Vec<_>>(),
-        })),
-        TapEvent::LeaderboardLoadScores(data) => Ok(json!({
-            "eventId": event_id::LEADERBOARD_LOAD_SCORES,
-            "requestId": data.request_id,
-            "error": data.error.map(|(code, message)| SdkError { code, message }),
-            "leaderboard": data.leaderboard.map(leaderboard_info_to_json),
-            "scores": data.scores.into_iter().map(leaderboard_score_to_json).collect::<Vec<_>>(),
-            "continuationToken": data.continuation_token,
-            "isTruncated": data.is_truncated,
-        })),
-        TapEvent::LeaderboardLoadMyScores(data) => Ok(json!({
-            "eventId": event_id::LEADERBOARD_LOAD_MY_SCORES,
-            "requestId": data.request_id,
-            "error": data.error.map(|(code, message)| SdkError { code, message }),
-            "leaderboard": data.leaderboard.map(leaderboard_info_to_json),
-            "score": data.score.map(leaderboard_score_to_json),
-        })),
-        TapEvent::LeaderboardLoadMyCenteredScores(data) => Ok(json!({
-            "eventId": event_id::LEADERBOARD_LOAD_MY_CENTERED_SCORES,
-            "requestId": data.request_id,
-            "error": data.error.map(|(code, message)| SdkError { code, message }),
-            "leaderboard": data.leaderboard.map(leaderboard_info_to_json),
-            "scores": data.scores.into_iter().map(leaderboard_score_to_json).collect::<Vec<_>>(),
-        })),
         TapEvent::OnlineGame(data) => Ok(json!({
             "eventId": event_id::ONLINE_GAME_EVENT,
             "requestId": data.request_id,
@@ -550,37 +463,6 @@ fn convert_event_to_json(event: TapEvent) -> serde_json::Result<serde_json::Valu
         })),
         TapEvent::Unknown { event_id: id } => serde_json::to_value(UnknownEvent { event_id: id }),
     }
-}
-
-fn leaderboard_info_to_json(info: tapsdk_pc::callback::LeaderboardInfo) -> serde_json::Value {
-    json!({
-        "id": info.id,
-        "name": info.name,
-        "period": info.period.map(|period| json!({
-            "periodToken": period.period_token,
-            "display": period.display,
-        })),
-        "availablePeriods": info.available_periods.into_iter().map(|period| {
-            json!({
-                "periodToken": period.period_token,
-                "display": period.display,
-            })
-        }).collect::<Vec<_>>(),
-    })
-}
-
-fn leaderboard_score_to_json(score: tapsdk_pc::callback::LeaderboardScore) -> serde_json::Value {
-    json!({
-        "rank": score.rank,
-        "score": score.score,
-        "user": {
-            "openId": score.user.open_id,
-            "unionId": score.user.union_id,
-            "name": score.user.name,
-            "avatar": score.user.avatar,
-        },
-        "scoreSubmittedTime": score.score_submitted_time,
-    })
 }
 
 fn online_game_payload_to_json(
@@ -1058,99 +940,6 @@ impl Compliance {
     }
 }
 
-/// Leaderboard API
-#[napi]
-pub struct Leaderboard {
-    inner: tapsdk_pc::Leaderboard,
-}
-
-#[napi]
-impl Leaderboard {
-    /// Get the leaderboard singleton
-    #[napi(factory)]
-    pub fn get() -> Result<Self> {
-        let inner = tapsdk_pc::Leaderboard::get()
-            .ok_or_else(|| Error::from_reason("SDK not initialized or Leaderboard unavailable"))?;
-        Ok(Leaderboard { inner })
-    }
-
-    /// Submit scores to up to five leaderboards
-    #[napi(js_name = "submitScores")]
-    pub fn submit_scores(&self, request_id: i64, items: Vec<LeaderboardScoreItem>) -> Result<()> {
-        let items = items
-            .into_iter()
-            .map(|item| tapsdk_pc::leaderboard::LeaderboardScoreItem {
-                leaderboard_id: item.leaderboard_id,
-                score: item.score,
-            })
-            .collect::<Vec<_>>();
-
-        self.inner
-            .submit_scores(request_id, &items)
-            .map_err(|e| Error::from_reason(e.to_string()))
-    }
-
-    /// Load leaderboard scores
-    #[napi(js_name = "loadScores")]
-    pub fn load_scores(&self, request_id: i64, request: LoadScoresRequest) -> Result<()> {
-        let request = tapsdk_pc::leaderboard::LoadScoresRequest {
-            leaderboard_id: request.leaderboard_id,
-            collection: leaderboard_collection_from_u32(request.collection)?,
-            continuation_token: request.continuation_token,
-            period_token: request.period_token,
-        };
-
-        self.inner
-            .load_scores(request_id, &request)
-            .map_err(|e| Error::from_reason(e.to_string()))
-    }
-
-    /// Load the current user's score
-    #[napi(js_name = "loadMyScores")]
-    pub fn load_my_scores(&self, request_id: i64, request: LoadMyScoresRequest) -> Result<()> {
-        let request = tapsdk_pc::leaderboard::LoadMyScoresRequest {
-            leaderboard_id: request.leaderboard_id,
-            collection: leaderboard_collection_from_u32(request.collection)?,
-            period_token: request.period_token,
-        };
-
-        self.inner
-            .load_my_scores(request_id, &request)
-            .map_err(|e| Error::from_reason(e.to_string()))
-    }
-
-    /// Load scores near the current user
-    #[napi(js_name = "loadMyCenteredScores")]
-    pub fn load_my_centered_scores(
-        &self,
-        request_id: i64,
-        request: LoadMyCenteredScoresRequest,
-    ) -> Result<()> {
-        let request = tapsdk_pc::leaderboard::LoadMyCenteredScoresRequest {
-            leaderboard_id: request.leaderboard_id,
-            collection: leaderboard_collection_from_u32(request.collection)?,
-            max_results: request.max_results,
-        };
-
-        self.inner
-            .load_my_centered_scores(request_id, &request)
-            .map_err(|e| Error::from_reason(e.to_string()))
-    }
-
-    /// Open the TapTap leaderboards page
-    #[napi(js_name = "showLeaderboards")]
-    pub fn show_leaderboards(&self, request: ShowLeaderboardRequest) -> Result<()> {
-        let request = tapsdk_pc::leaderboard::ShowLeaderboardRequest {
-            leaderboard_id: request.leaderboard_id,
-            collection: leaderboard_collection_from_u32(request.collection)?,
-        };
-
-        self.inner
-            .show_leaderboards(&request)
-            .map_err(|e| Error::from_reason(e.to_string()))
-    }
-}
-
 /// Online game API
 #[napi]
 pub struct OnlineGame {
@@ -1325,18 +1114,6 @@ impl OnlineGame {
         self.inner
             .stop_frame_sync(request_id)
             .map_err(|e| Error::from_reason(e.to_string()))
-    }
-}
-
-fn leaderboard_collection_from_u32(
-    collection: u32,
-) -> Result<tapsdk_pc::leaderboard::LeaderboardCollection> {
-    match collection {
-        0 => Ok(tapsdk_pc::leaderboard::LeaderboardCollection::Public),
-        1 => Ok(tapsdk_pc::leaderboard::LeaderboardCollection::Friends),
-        _ => Err(Error::from_reason(
-            "collection must be 0 (public) or 1 (friends)",
-        )),
     }
 }
 

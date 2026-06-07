@@ -59,8 +59,8 @@ T_API ITapAchievement* T_CALLTYPE TapAchievement();
 
 /**
  * 发起成就解锁异步请求。如果请求发起成功，请求处理结果会通过TapEventID::AchievementUnlock对应的回调函数返回
-  * @param self TapAchievement()返回的成就单例对象
-  * @param request_id 开发者生成的请求 ID，请求处理完成后，调用回调函数时原样返回，开发者可使用该 ID 对应到原始请求
+ * @param self TapAchievement()返回的成就单例对象
+ * @param request_id 开发者生成的请求 ID，请求处理完成后，调用回调函数时原样返回，开发者可使用该 ID 对应到原始请求
  * @param request 请求参数
  * @return 请求发起结果，如果不是TapSDK_Result_OK，表示请求发起失败，不会触发回调函数
  */
@@ -72,8 +72,8 @@ T_API TapSDK_Result T_CALLTYPE TapAchievement_AsyncUnlock(
 
 /**
  * 发起分步成就步长增长异步请求。如果请求发起成功，请求处理结果会通过TapEventID::AchievementIncrement对应的回调函数返回
-  * @param self TapAchievement()返回的成就单例对象
-  * @param request_id 开发者生成的请求 ID，请求处理完成后，调用回调函数时原样返回，开发者可使用该 ID 对应到原始请求
+ * @param self TapAchievement()返回的成就单例对象
+ * @param request_id 开发者生成的请求 ID，请求处理完成后，调用回调函数时原样返回，开发者可使用该 ID 对应到原始请求
  * @param request 请求参数
  * @return 请求发起结果，如果不是TapSDK_Result_OK，表示请求发起失败，不会触发回调函数
  */
@@ -85,8 +85,8 @@ T_API TapSDK_Result T_CALLTYPE TapAchievement_AsyncIncrement(
 
 /**
  * 发起打开成就展示页同步请求。
-  * @param self TapAchievement()返回的成就单例对象
-  * @return 请求发起结果，如果不是TapSDK_Result_OK，表示请求发起失败
+ * @param self TapAchievement()返回的成就单例对象
+ * @return 请求发起结果，如果不是TapSDK_Result_OK，表示请求发起失败
  */
 T_API TapSDK_Result T_CALLTYPE TapAchievement_ShowAchievements(
     ITapAchievement* self

@@ -59,7 +59,6 @@ pub mod cloudsave;
 pub mod compliance;
 pub mod dlc;
 pub mod error;
-pub mod leaderboard;
 pub mod onlinegame;
 pub mod ownership;
 pub mod sdk;
@@ -71,7 +70,6 @@ pub use callback::TapEvent;
 pub use cloudsave::CloudSave;
 pub use compliance::Compliance;
 pub use error::{Result, TapSdkError};
-pub use leaderboard::Leaderboard;
 pub use onlinegame::OnlineGame;
 pub use sdk::{is_initialized, restart_app_if_necessary, TapSdk};
 

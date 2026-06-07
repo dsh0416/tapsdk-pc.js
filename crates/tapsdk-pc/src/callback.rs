@@ -23,10 +23,6 @@ pub mod event_id {
     pub const ACHIEVEMENT_INCREMENT: u32 = 7002;
     pub const COMPLIANCE_ENSURE_REAL_NAME: u32 = 8001;
     pub const COMPLIANCE_ACTIONS_EVENT: u32 = 8002;
-    pub const LEADERBOARD_SUBMIT_SCORES: u32 = 9001;
-    pub const LEADERBOARD_LOAD_SCORES: u32 = 9002;
-    pub const LEADERBOARD_LOAD_MY_SCORES: u32 = 9003;
-    pub const LEADERBOARD_LOAD_MY_CENTERED_SCORES: u32 = 9004;
     pub const ONLINE_GAME_EVENT: u32 = 10001;
 }
 
@@ -153,94 +149,6 @@ pub struct ComplianceEnsureRealNameData {
 #[derive(Debug, Clone)]
 pub struct ComplianceActionsData {
     pub actions: Vec<ComplianceAction>,
-}
-
-/// Leaderboard period info.
-#[derive(Debug, Clone)]
-pub struct LeaderboardPeriod {
-    pub period_token: String,
-    pub display: String,
-}
-
-/// Leaderboard user info.
-#[derive(Debug, Clone)]
-pub struct LeaderboardUserInfo {
-    pub open_id: String,
-    pub union_id: String,
-    pub name: String,
-    pub avatar: String,
-}
-
-/// Leaderboard score info.
-#[derive(Debug, Clone)]
-pub struct LeaderboardScore {
-    pub rank: u32,
-    pub score: i64,
-    pub user: LeaderboardUserInfo,
-    pub score_submitted_time: u64,
-}
-
-/// Leaderboard info.
-#[derive(Debug, Clone)]
-pub struct LeaderboardInfo {
-    pub id: String,
-    pub name: String,
-    pub period: Option<LeaderboardPeriod>,
-    pub available_periods: Vec<LeaderboardPeriod>,
-}
-
-/// Leaderboard submit score result data.
-#[derive(Debug, Clone)]
-pub struct LeaderboardSubmitScoreResultData {
-    pub new_best: bool,
-    pub raw_score: i64,
-}
-
-/// Leaderboard submit score result.
-#[derive(Debug, Clone)]
-pub struct LeaderboardSubmitScoreResult {
-    pub leaderboard_id: String,
-    pub period_token: String,
-    pub score_result: Option<LeaderboardSubmitScoreResultData>,
-    pub open_id: String,
-    pub union_id: String,
-}
-
-/// Leaderboard submit scores response.
-#[derive(Debug, Clone)]
-pub struct LeaderboardSubmitScoresData {
-    pub request_id: i64,
-    pub error: Option<(i64, String)>,
-    pub results: Vec<LeaderboardSubmitScoreResult>,
-}
-
-/// Leaderboard load scores response.
-#[derive(Debug, Clone)]
-pub struct LeaderboardLoadScoresData {
-    pub request_id: i64,
-    pub error: Option<(i64, String)>,
-    pub leaderboard: Option<LeaderboardInfo>,
-    pub scores: Vec<LeaderboardScore>,
-    pub continuation_token: Option<String>,
-    pub is_truncated: bool,
-}
-
-/// Leaderboard load my scores response.
-#[derive(Debug, Clone)]
-pub struct LeaderboardLoadMyScoresData {
-    pub request_id: i64,
-    pub error: Option<(i64, String)>,
-    pub leaderboard: Option<LeaderboardInfo>,
-    pub score: Option<LeaderboardScore>,
-}
-
-/// Leaderboard load my centered scores response.
-#[derive(Debug, Clone)]
-pub struct LeaderboardLoadMyCenteredScoresData {
-    pub request_id: i64,
-    pub error: Option<(i64, String)>,
-    pub leaderboard: Option<LeaderboardInfo>,
-    pub scores: Vec<LeaderboardScore>,
 }
 
 /// Online game event response or notification.
@@ -396,14 +304,6 @@ pub enum TapEvent {
     ComplianceEnsureRealName(ComplianceEnsureRealNameData),
     /// Compliance anti-addiction actions notification
     ComplianceActionsEvent(ComplianceActionsData),
-    /// Leaderboard submit scores response
-    LeaderboardSubmitScores(LeaderboardSubmitScoresData),
-    /// Leaderboard load scores response
-    LeaderboardLoadScores(LeaderboardLoadScoresData),
-    /// Leaderboard load my scores response
-    LeaderboardLoadMyScores(LeaderboardLoadMyScoresData),
-    /// Leaderboard load scores near the current user response
-    LeaderboardLoadMyCenteredScores(LeaderboardLoadMyCenteredScoresData),
     /// Online game event
     OnlineGame(OnlineGameEventData),
     /// Unknown event
@@ -453,22 +353,6 @@ pub fn register_callbacks() {
         );
         tapsdk_pc_sys::TapSDK_RegisterCallback(
             event_id::COMPLIANCE_ACTIONS_EVENT,
-            Some(global_callback),
-        );
-        tapsdk_pc_sys::TapSDK_RegisterCallback(
-            event_id::LEADERBOARD_SUBMIT_SCORES,
-            Some(global_callback),
-        );
-        tapsdk_pc_sys::TapSDK_RegisterCallback(
-            event_id::LEADERBOARD_LOAD_SCORES,
-            Some(global_callback),
-        );
-        tapsdk_pc_sys::TapSDK_RegisterCallback(
-            event_id::LEADERBOARD_LOAD_MY_SCORES,
-            Some(global_callback),
-        );
-        tapsdk_pc_sys::TapSDK_RegisterCallback(
-            event_id::LEADERBOARD_LOAD_MY_CENTERED_SCORES,
             Some(global_callback),
         );
     }
@@ -528,22 +412,6 @@ pub fn unregister_callbacks() {
         );
         tapsdk_pc_sys::TapSDK_UnregisterCallback(
             event_id::COMPLIANCE_ACTIONS_EVENT,
-            Some(global_callback),
-        );
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(
-            event_id::LEADERBOARD_SUBMIT_SCORES,
-            Some(global_callback),
-        );
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(
-            event_id::LEADERBOARD_LOAD_SCORES,
-            Some(global_callback),
-        );
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(
-            event_id::LEADERBOARD_LOAD_MY_SCORES,
-            Some(global_callback),
-        );
-        tapsdk_pc_sys::TapSDK_UnregisterCallback(
-            event_id::LEADERBOARD_LOAD_MY_CENTERED_SCORES,
             Some(global_callback),
         );
     }
@@ -847,78 +715,6 @@ unsafe fn parse_event(event_id: u32, data: *mut std::ffi::c_void) -> TapEvent {
             TapEvent::ComplianceActionsEvent(ComplianceActionsData { actions })
         }
 
-        event_id::LEADERBOARD_SUBMIT_SCORES => {
-            if data.is_null() {
-                return TapEvent::Unknown { event_id };
-            }
-
-            let response = &*(data as *const tapsdk_pc_sys::TapLeaderboardSubmitScoresResponse);
-            let results = if response.results.is_null() || response.result_count == 0 {
-                Vec::new()
-            } else {
-                std::slice::from_raw_parts(response.results, response.result_count as usize)
-                    .iter()
-                    .map(|result| parse_leaderboard_submit_score_result(result))
-                    .collect()
-            };
-
-            TapEvent::LeaderboardSubmitScores(LeaderboardSubmitScoresData {
-                request_id: response.request_id,
-                error: parse_sdk_error(response.error),
-                results,
-            })
-        }
-
-        event_id::LEADERBOARD_LOAD_SCORES => {
-            if data.is_null() {
-                return TapEvent::Unknown { event_id };
-            }
-
-            let response = &*(data as *const tapsdk_pc_sys::TapLeaderboardLoadScoresResponse);
-            let scores = parse_leaderboard_scores(response.scores, response.score_count);
-
-            TapEvent::LeaderboardLoadScores(LeaderboardLoadScoresData {
-                request_id: response.request_id,
-                error: parse_sdk_error(response.error),
-                leaderboard: parse_leaderboard_info(response.leaderboard),
-                scores,
-                continuation_token: ptr_to_optional_string(response.continuation_token),
-                is_truncated: response.is_truncated,
-            })
-        }
-
-        event_id::LEADERBOARD_LOAD_MY_SCORES => {
-            if data.is_null() {
-                return TapEvent::Unknown { event_id };
-            }
-
-            let response = &*(data as *const tapsdk_pc_sys::TapLeaderboardLoadMyScoresResponse);
-
-            TapEvent::LeaderboardLoadMyScores(LeaderboardLoadMyScoresData {
-                request_id: response.request_id,
-                error: parse_sdk_error(response.error),
-                leaderboard: parse_leaderboard_info(response.leaderboard),
-                score: parse_leaderboard_score(response.score),
-            })
-        }
-
-        event_id::LEADERBOARD_LOAD_MY_CENTERED_SCORES => {
-            if data.is_null() {
-                return TapEvent::Unknown { event_id };
-            }
-
-            let response =
-                &*(data as *const tapsdk_pc_sys::TapLeaderboardLoadMyCenteredScoresResponse);
-            let scores = parse_leaderboard_scores(response.scores, response.score_count);
-
-            TapEvent::LeaderboardLoadMyCenteredScores(LeaderboardLoadMyCenteredScoresData {
-                request_id: response.request_id,
-                error: parse_sdk_error(response.error),
-                leaderboard: parse_leaderboard_info(response.leaderboard),
-                scores,
-            })
-        }
-
         _ => TapEvent::Unknown { event_id },
     }
 }
@@ -978,106 +774,6 @@ unsafe fn parse_compliance_action(action: &tapsdk_pc_sys::TapComplianceAction) -
         title: ptr_to_string(action.title),
         description: ptr_to_string(action.description),
         display_duration_seconds: action.display_duration_seconds,
-    }
-}
-
-unsafe fn parse_leaderboard_period(
-    period: *const tapsdk_pc_sys::TapLeaderboardPeriod,
-) -> Option<LeaderboardPeriod> {
-    if period.is_null() {
-        return None;
-    }
-
-    let period = &*period;
-    Some(LeaderboardPeriod {
-        period_token: ptr_to_string(period.period_token),
-        display: ptr_to_string(period.display),
-    })
-}
-
-unsafe fn parse_leaderboard_info(
-    info: *const tapsdk_pc_sys::TapLeaderboardInfo,
-) -> Option<LeaderboardInfo> {
-    if info.is_null() {
-        return None;
-    }
-
-    let info = &*info;
-    let available_periods = if info.available_periods.is_null() || info.available_period_count == 0
-    {
-        Vec::new()
-    } else {
-        std::slice::from_raw_parts(info.available_periods, info.available_period_count as usize)
-            .iter()
-            .map(|period| LeaderboardPeriod {
-                period_token: ptr_to_string(period.period_token),
-                display: ptr_to_string(period.display),
-            })
-            .collect()
-    };
-
-    Some(LeaderboardInfo {
-        id: ptr_to_string(info.id),
-        name: ptr_to_string(info.name),
-        period: parse_leaderboard_period(info.period),
-        available_periods,
-    })
-}
-
-unsafe fn parse_leaderboard_score(
-    score: *const tapsdk_pc_sys::TapLeaderboardScore,
-) -> Option<LeaderboardScore> {
-    if score.is_null() {
-        return None;
-    }
-
-    let score = &*score;
-    Some(LeaderboardScore {
-        rank: score.rank,
-        score: score.score,
-        user: LeaderboardUserInfo {
-            open_id: ptr_to_string(score.user.open_id),
-            union_id: ptr_to_string(score.user.union_id),
-            name: ptr_to_string(score.user.name),
-            avatar: ptr_to_string(score.user.avatar),
-        },
-        score_submitted_time: score.score_submitted_time,
-    })
-}
-
-unsafe fn parse_leaderboard_scores(
-    scores: *const tapsdk_pc_sys::TapLeaderboardScore,
-    count: u32,
-) -> Vec<LeaderboardScore> {
-    if scores.is_null() || count == 0 {
-        return Vec::new();
-    }
-
-    std::slice::from_raw_parts(scores, count as usize)
-        .iter()
-        .map(|score| parse_leaderboard_score(score).expect("score pointer from slice is valid"))
-        .collect()
-}
-
-unsafe fn parse_leaderboard_submit_score_result(
-    result: &tapsdk_pc_sys::TapLeaderboardSubmitScoreResult,
-) -> LeaderboardSubmitScoreResult {
-    let score_result = if result.score_result.is_null() {
-        None
-    } else {
-        let score_result = &*result.score_result;
-        Some(LeaderboardSubmitScoreResultData {
-            new_best: score_result.new_best,
-            raw_score: score_result.raw_score,
-        })
-    };
-
-    LeaderboardSubmitScoreResult {
-        leaderboard_id: ptr_to_string(result.leaderboard_id),
-        period_token: ptr_to_string(result.period_token),
-        score_result,
-        open_id: ptr_to_string(result.open_id),
-        union_id: ptr_to_string(result.union_id),
     }
 }
 

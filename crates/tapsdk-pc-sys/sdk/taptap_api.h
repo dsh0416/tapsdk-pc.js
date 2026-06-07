@@ -60,7 +60,7 @@ typedef uint32_t TapSDK_Init_Result;
 
 // 授权结果枚举值
 enum {
-    TapUser_AsyncAuthorize_Result_Unknown = 0, // 未知错误，无法请求授权，请检查 SDK 是否完成初始化 (调用 TapSDK_Init 并返回 TapSDK_Init_Result::OK)
+    TapUser_AsyncAuthorize_Result_Unknown = 0, // 未知错误，无法请求授权，请检查 SDK 是否完成初始化 (调用 TapSDK_Init 并返回 TapSDK_Init_Result_OK)
     TapUser_AsyncAuthorize_Result_OK = 1,      // 成功发起授权流程，等待用户确认或者自动授权完成（此时授权流程还未完成）
     TapUser_AsyncAuthorize_Result_Failed = 2,  // 发起授权流程失败，可能的原因：1. 用户网络问题，2. TapTap 平台内部错误。请引导用户稍后重试
     TapUser_AsyncAuthorize_Result_InFlight = 3 // 授权流程正在执行中，请等待授权流程完成
@@ -82,7 +82,6 @@ enum {
 	TapSDK_Result_TapTapClientNotLoggedIn = 6, // TapTap 客户端未登录
 	TapSDK_Result_UnknownError = 7, // 未知错误
 	TapSDK_Result_NetworkError = 8, // 网络错误
-	TapSDK_Result_ForbiddenError = 9, // 用户没有当前动作的权限（如对应游戏服务未开通）
 };
 // TapSDK 接口返回值，取值请参考枚举值 TapSDK_Result_*
 //   - 注意：由于历史原因，部分接口（如初始化、授权、云存档）的返回值不是 TapSDK_Result 类型，请参考对应接口的文档说明
@@ -101,8 +100,6 @@ enum {
 	TapSDK_ErrorCode_InternalServerError = 8,  // 服务器内部错误
 	TapSDK_ErrorCode_InternalSdkError = 9,     // SDK内部错误
 	TapSDK_ErrorCode_NetworkError = 10,        // 网络错误
-	TapSDK_ErrorCode_NotFound = 11,            // 数据不存在
-	TapSDK_ErrorCode_InsufficientScope = 12,   // 当前用户未授权获取此产品/服务，提示权限不足
 
 	// reserved 200000 ~ 299999 防沉迷使用
 
@@ -119,9 +116,6 @@ enum {
 	TapSDK_ErrorCode_CloudSave_InvalidName = 400009,                   // 存档名称不合法
 
 	// reserved 500000 ~ 599999 排行榜使用
-	TapSDK_ErrorCode_Leaderboard_PeriodExpired       = 500000, // 排行榜周期已过期，提示用户查看其他周期
-	TapSDK_ErrorCode_Leaderboard_NotFound            = 500001, // 排行榜 ID 未找到，检查 ID 是否正确
-	TapSDK_ErrorCode_Leaderboard_InvalidArgument     = 500002, // 参数错误，如 leaderboard_id 与 client_id 不匹配
 
 	// 联机游戏：600000 ~ 699999
 	TapSDK_ErrorCode_OnlineGame_RequestRateLimitExceeded     = 600001, // 请求频率超限
@@ -181,7 +175,6 @@ enum class TapEventID : uint32_t {
 
   // [2001, 4000), reserved for TapTap user events
   AuthorizeFinished = 2002,
-  UserGetApprovedScopes = 2003, // 获取用户当前授权范围回调，使用 TapUserGetApprovedScopesResponse 结构体解析
 
   // [4001, 6000), reserved for TapTap ownership events
   GamePlayableStatusChanged = 4001,
@@ -200,14 +193,8 @@ enum class TapEventID : uint32_t {
   AchievementIncrement = 7002, // 分步成就增长步长
 
   // [8001, 9000), reserved for TapTap Compliance events
-  ComplianceEnsureRealName = 8001, // 检查实名
-  ComplianceActionsEvent = 8002, // 防沉迷动作推送
-
-  // [9001, 10000), reserved for TapTap Leaderboard events
-  LeaderboardSubmitScores = 9001,        // 提交分数回调
-  LeaderboardLoadScores = 9002,          // 获取排行榜数据回调
-  LeaderboardLoadMyScores = 9003,        // 获取当前用户分数回调
-  LeaderboardLoadMyCenteredScores = 9004, // 获取用户相近分数回调
+  ComplianceEnsureRealName = 8001,
+  ComplianceActionsEvent = 8002,
 };
 
 #else
@@ -224,7 +211,6 @@ enum {
 
   // [2001, 4000), reserved for TapTap user events
   TapEventID_AuthorizeFinished = 2002,
-  TapEventID_UserGetApprovedScopes = 2003, // 获取用户当前授权范围回调，使用 TapUserGetApprovedScopesResponse 结构体解析
 
   // [4001, 6000), reserved for TapTap ownership events
   TapEventID_GamePlayableStatusChanged = 4001,
@@ -240,17 +226,11 @@ enum {
 
   // [7001, 8000), reserved for TapTap Achievement events
   TapEventID_AchievementUnlock = 7001,  // 获取成就解锁回调，使用 TapAchievementUnlockResponse 结构体解析
-  TapEventID_AchievementIncrement = 7002, // 获取分步成就步长增长回调，使用 TapAchievementIncrementResponse 结构体解析
+  TapEventID_AchievementIncrement = 7002, // 获取增长步长回调，使用 TapAchievementIncrementResponse 结构体解析
 
   // [8001, 9000), reserved for TapTap Compliance events
-  TapEventID_ComplianceEnsureRealName = 8001, // 检查实名回调，使用 TapComplianceEnsureRealNameResponse 结构体解析
-  TapEventID_ComplianceActionsEvent = 8002,   // 防沉迷动作推送，使用 TapComplianceActionsEvent 结构体解析
-
-  // [9001, 10000), reserved for TapTap Leaderboard events
-  TapEventID_LeaderboardSubmitScores = 9001,        // 提交分数回调，使用 TapLeaderboardSubmitScoresResponse 结构体解析
-  TapEventID_LeaderboardLoadScores = 9002,          // 获取排行榜数据回调，使用 TapLeaderboardLoadScoresResponse 结构体解析
-  TapEventID_LeaderboardLoadMyScores = 9003,        // 获取当前用户分数回调，使用 TapLeaderboardLoadMyScoresResponse 结构体解析
-  TapEventID_LeaderboardLoadMyCenteredScores = 9004, // 获取用户相近分数回调，使用 TapLeaderboardLoadMyCenteredScoresResponse 结构体解析
+  TapEventID_ComplianceEnsureRealName = 8001, // 实名
+  TapEventID_ComplianceActionsEvent = 8002, // 合规认证 UI 事件
 };
 // 事件 ID
 typedef uint32_t TapEventID;
@@ -287,14 +267,6 @@ struct AuthorizeFinishedResponse {
     char mac_algorithm[32];
     char scope[1024];
 };
-
-// 拉取用户授权范围的响应
-typedef struct {
-    int64_t request_id;        // 请求 ID。原样返回开发者调用异步接口时传入的 ID，开发者可使用该 ID 对应到原始请求
-    const TapSDK_Error* error; // 错误信息。NULL 表示请求成功；非 NULL 表示请求失败，可根据其中的错误码做相应处理
-    uint32_t scope_count;      // 授权范围数量
-    const char** scopes;       // 用户当前授权范围数组
-} TapUserGetApprovedScopesResponse;
 
 //  游戏本体可玩状态变更事件响应结构体
 struct GamePlayableStatusChangedResponse {
@@ -410,13 +382,6 @@ T_API bool T_CALLTYPE TapApps_IsOwned();
  * @return 授权请求结果
  */
 T_API TapUser_AsyncAuthorize_Result T_CALLTYPE TapUser_AsyncAuthorize(const char* scopes);
-
-/**
- * 异步获取用户当前的授权范围
- * @param request_id 开发者生成的请求 ID，请求处理完成后，调用回调函数时原样返回，开发者可使用该 ID 对应到原始请求
- * @return 请求发起结果，如果不是 TapSDK_Result_OK，表示请求发起失败，不会触发回调函数
- */
-T_API TapSDK_Result T_CALLTYPE TapUser_AsyncGetApprovedScopes(int64_t request_id);
 
 /**
  * 获取用户 OpenID

@@ -14,7 +14,6 @@ import { TapSdk } from './sdk.js';
 import { CloudSave } from './cloudsave.js';
 import { Achievement } from './achievement.js';
 import { Compliance } from './compliance.js';
-import { Leaderboard } from './leaderboard.js';
 import { OnlineGame } from './onlinegame.js';
 import { EventId, SystemState } from './types.js';
 
@@ -25,7 +24,6 @@ describe('Native Module Loading', () => {
     expect(native.CloudSave).toBeDefined();
     expect(native.Achievement).toBeDefined();
     expect(native.Compliance).toBeDefined();
-    expect(native.Leaderboard).toBeDefined();
     expect(native.OnlineGame).toBeDefined();
   });
 
@@ -59,10 +57,6 @@ describe('EventId Constants', () => {
     expect(EventId.ACHIEVEMENT_INCREMENT).toBe(7002);
     expect(EventId.COMPLIANCE_ENSURE_REAL_NAME).toBe(8001);
     expect(EventId.COMPLIANCE_ACTIONS_EVENT).toBe(8002);
-    expect(EventId.LEADERBOARD_SUBMIT_SCORES).toBe(9001);
-    expect(EventId.LEADERBOARD_LOAD_SCORES).toBe(9002);
-    expect(EventId.LEADERBOARD_LOAD_MY_SCORES).toBe(9003);
-    expect(EventId.LEADERBOARD_LOAD_MY_CENTERED_SCORES).toBe(9004);
     expect(EventId.ONLINE_GAME_EVENT).toBe(10001);
   });
 
@@ -72,7 +66,6 @@ describe('EventId Constants', () => {
     expect(EventId.CLOUD_SAVE_LIST).toBe(native.event_id.CLOUD_SAVE_LIST);
     expect(EventId.ACHIEVEMENT_UNLOCK).toBe(native.event_id.ACHIEVEMENT_UNLOCK);
     expect(EventId.COMPLIANCE_ENSURE_REAL_NAME).toBe(native.event_id.COMPLIANCE_ENSURE_REAL_NAME);
-    expect(EventId.LEADERBOARD_LOAD_SCORES).toBe(native.event_id.LEADERBOARD_LOAD_SCORES);
     expect(EventId.ONLINE_GAME_EVENT).toBe(native.event_id.ONLINE_GAME_EVENT);
   });
 });
@@ -177,16 +170,6 @@ describe('Compliance', () => {
   });
 });
 
-describe('Leaderboard', () => {
-  it('should have get factory method', () => {
-    expect(Leaderboard.get).toBeInstanceOf(Function);
-  });
-
-  it('should fail to get Leaderboard without SDK initialization', () => {
-    expect(() => Leaderboard.get()).toThrow();
-  });
-});
-
 describe('OnlineGame', () => {
   it('should have get factory method', () => {
     expect(OnlineGame.get).toBeInstanceOf(Function);
@@ -250,20 +233,6 @@ describe('Compliance Prototype Methods', () => {
 
   it.each(methods)('should have %s method on prototype', (method) => {
     expect(Compliance.prototype[method]).toBeInstanceOf(Function);
-  });
-});
-
-describe('Leaderboard Prototype Methods', () => {
-  const methods = [
-    'submitScores',
-    'loadScores',
-    'loadMyScores',
-    'loadMyCenteredScores',
-    'showLeaderboards',
-  ] as const;
-
-  it.each(methods)('should have %s method on prototype', (method) => {
-    expect(Leaderboard.prototype[method]).toBeInstanceOf(Function);
   });
 });
 
