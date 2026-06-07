@@ -53,6 +53,7 @@
 //! }
 //! ```
 
+pub mod achievement;
 pub mod callback;
 pub mod cloudsave;
 pub mod dlc;
@@ -62,6 +63,7 @@ pub mod sdk;
 pub mod user;
 
 // Re-export commonly used types at the crate root
+pub use achievement::Achievement;
 pub use callback::TapEvent;
 pub use cloudsave::CloudSave;
 pub use error::{Result, TapSdkError};

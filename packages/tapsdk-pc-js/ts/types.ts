@@ -31,6 +31,14 @@ export interface CloudSaveInfo {
   modifiedTime: number;
 }
 
+/** Achievement information returned from achievement events */
+export interface AchievementInfo {
+  id: string;
+  name: string;
+  currentSteps: number;
+  newlyUnlocked: boolean;
+}
+
 /** Request to create a cloud save */
 export interface CreateSaveRequest {
   /** Save name (max 60 bytes, no Chinese characters) */
@@ -142,6 +150,24 @@ export interface CloudSaveGetCoverEvent {
   data: Buffer;
 }
 
+/** Achievement unlock event */
+export interface AchievementUnlockEvent {
+  eventId: typeof EventId.ACHIEVEMENT_UNLOCK;
+  requestId: number;
+  error?: SdkError;
+  achievement?: AchievementInfo;
+  platinumAchievement?: AchievementInfo;
+}
+
+/** Achievement increment event */
+export interface AchievementIncrementEvent {
+  eventId: typeof EventId.ACHIEVEMENT_INCREMENT;
+  requestId: number;
+  error?: SdkError;
+  achievement?: AchievementInfo;
+  platinumAchievement?: AchievementInfo;
+}
+
 /** Unknown event */
 export interface UnknownEvent {
   eventId: number;
@@ -159,6 +185,8 @@ export type TapEvent =
   | CloudSaveDeleteEvent
   | CloudSaveGetDataEvent
   | CloudSaveGetCoverEvent
+  | AchievementUnlockEvent
+  | AchievementIncrementEvent
   | UnknownEvent;
 
 // Constants
@@ -176,6 +204,8 @@ export const EventId = {
   CLOUD_SAVE_DELETE: 6004,
   CLOUD_SAVE_GET_DATA: 6005,
   CLOUD_SAVE_GET_COVER: 6006,
+  ACHIEVEMENT_UNLOCK: 7001,
+  ACHIEVEMENT_INCREMENT: 7002,
 } as const;
 
 /** System state constants */

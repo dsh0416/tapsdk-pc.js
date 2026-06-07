@@ -2,7 +2,7 @@
 
 Node.js bindings for the TapTap PC SDK, built with Rust and NAPI-RS.
 
-Based on **TapTap PC SDK v4.1.1**.
+Based on **TapTap PC SDK v4.4.1**.
 
 [![CI](https://github.com/dsh0416/tapsdk-pc.js/actions/workflows/build.yml/badge.svg)](https://github.com/dsh0416/tapsdk-pc.js/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -15,6 +15,7 @@ Based on **TapTap PC SDK v4.1.1**.
 - **Game Ownership** - Verify if users own your game or DLC
 - **User Authentication** - OAuth authentication via TapTap
 - **Cloud Saves** - Full cloud save support (create, update, download, delete)
+- **Achievements** - Unlock achievements, increment step-based achievements, and open the achievements page
 - **Native Performance** - Built with Rust and NAPI-RS
 
 ## Documentation
@@ -100,6 +101,24 @@ cloudSave.create(2, {
 sdk.on('event', (event) => {
   if (event.eventId === EventId.CLOUD_SAVE_LIST) {
     console.log(`Found ${event.saves.length} saves`);
+  }
+});
+```
+
+### Achievements
+
+```typescript
+import { Achievement, EventId } from 'tapsdk-pc';
+
+const achievement = Achievement.get();
+
+achievement.unlock(1, 'first_win');
+achievement.increment(2, 'kill_100_enemies', 1);
+achievement.showAchievements();
+
+sdk.on('event', (event) => {
+  if (event.eventId === EventId.ACHIEVEMENT_UNLOCK) {
+    console.log('Achievement unlocked:', event.achievement?.name);
   }
 });
 ```
@@ -206,6 +225,15 @@ pnpm docs:dev
 | `cloudSave.getData(requestId, uuid, fileId)` | Download save data |
 | `cloudSave.getCover(requestId, uuid, fileId)` | Download save cover |
 
+### Achievement
+
+| Method | Description |
+|--------|-------------|
+| `Achievement.get()` | Get singleton instance |
+| `achievement.unlock(requestId, achievementId)` | Unlock an achievement |
+| `achievement.increment(requestId, achievementId, steps)` | Increment step-based achievement progress |
+| `achievement.showAchievements()` | Open the TapTap achievements page |
+
 ### Event Types
 
 | Event ID | Constant | Description |
@@ -220,6 +248,8 @@ pnpm docs:dev
 | 6004 | `CLOUD_SAVE_DELETE` | Save deleted |
 | 6005 | `CLOUD_SAVE_GET_DATA` | Save data downloaded |
 | 6006 | `CLOUD_SAVE_GET_COVER` | Cover image downloaded |
+| 7001 | `ACHIEVEMENT_UNLOCK` | Achievement unlock response |
+| 7002 | `ACHIEVEMENT_INCREMENT` | Achievement increment response |
 
 ## Contributing
 

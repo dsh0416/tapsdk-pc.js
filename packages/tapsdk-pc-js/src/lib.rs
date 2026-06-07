@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use tapsdk_pc::callback::AchievementInfo as RustAchievementInfo;
 use tapsdk_pc::callback::CloudSaveInfo as RustCloudSaveInfo;
 use tapsdk_pc::callback::TapEvent;
 use tapsdk_pc::error::SystemState;
@@ -41,6 +42,10 @@ pub mod event_id {
     pub const CLOUD_SAVE_GET_DATA: u32 = 6005;
     #[napi]
     pub const CLOUD_SAVE_GET_COVER: u32 = 6006;
+    #[napi]
+    pub const ACHIEVEMENT_UNLOCK: u32 = 7001;
+    #[napi]
+    pub const ACHIEVEMENT_INCREMENT: u32 = 7002;
 }
 
 #[napi]
@@ -106,6 +111,28 @@ impl From<RustCloudSaveInfo> for CloudSaveInfo {
             playtime: info.playtime,
             created_time: info.created_time,
             modified_time: info.modified_time,
+        }
+    }
+}
+
+/// Achievement information
+#[napi(object)]
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AchievementInfo {
+    pub id: String,
+    pub name: String,
+    pub current_steps: i64,
+    pub newly_unlocked: bool,
+}
+
+impl From<RustAchievementInfo> for AchievementInfo {
+    fn from(info: RustAchievementInfo) -> Self {
+        AchievementInfo {
+            id: info.id,
+            name: info.name,
+            current_steps: i64::try_from(info.current_steps).unwrap_or(i64::MAX),
+            newly_unlocked: info.newly_unlocked,
         }
     }
 }
@@ -230,6 +257,18 @@ pub struct CloudSaveGetFileEvent {
     pub data: Buffer,
 }
 
+/// Achievement unlock/increment event
+#[napi(object)]
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AchievementEvent {
+    pub event_id: u32,
+    pub request_id: i64,
+    pub error: Option<SdkError>,
+    pub achievement: Option<AchievementInfo>,
+    pub platinum_achievement: Option<AchievementInfo>,
+}
+
 /// Unknown event
 #[napi(object)]
 #[derive(Serialize)]
@@ -305,6 +344,20 @@ fn convert_event_to_json(event: TapEvent) -> serde_json::Result<serde_json::Valu
             request_id: data.request_id,
             error: data.error.map(|(code, message)| SdkError { code, message }),
             data: Buffer::from(data.data),
+        }),
+        TapEvent::AchievementUnlock(data) => serde_json::to_value(AchievementEvent {
+            event_id: event_id::ACHIEVEMENT_UNLOCK,
+            request_id: data.request_id,
+            error: data.error.map(|(code, message)| SdkError { code, message }),
+            achievement: data.achievement.map(AchievementInfo::from),
+            platinum_achievement: data.platinum_achievement.map(AchievementInfo::from),
+        }),
+        TapEvent::AchievementIncrement(data) => serde_json::to_value(AchievementEvent {
+            event_id: event_id::ACHIEVEMENT_INCREMENT,
+            request_id: data.request_id,
+            error: data.error.map(|(code, message)| SdkError { code, message }),
+            achievement: data.achievement.map(AchievementInfo::from),
+            platinum_achievement: data.platinum_achievement.map(AchievementInfo::from),
         }),
         TapEvent::Unknown { event_id: id } => serde_json::to_value(UnknownEvent { event_id: id }),
     }
@@ -535,6 +588,50 @@ impl CloudSave {
     pub fn get_cover(&self, request_id: i64, uuid: String, file_id: String) -> Result<()> {
         self.inner
             .get_cover(request_id, &uuid, &file_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+}
+
+/// Achievement API
+#[napi]
+pub struct Achievement {
+    inner: tapsdk_pc::Achievement,
+}
+
+#[napi]
+impl Achievement {
+    /// Get the achievement singleton
+    #[napi(factory)]
+    pub fn get() -> Result<Self> {
+        let inner = tapsdk_pc::Achievement::get()
+            .ok_or_else(|| Error::from_reason("SDK not initialized or Achievement unavailable"))?;
+        Ok(Achievement { inner })
+    }
+
+    /// Unlock an achievement
+    #[napi]
+    pub fn unlock(&self, request_id: i64, achievement_id: String) -> Result<()> {
+        self.inner
+            .unlock(request_id, &achievement_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Increment progress for a step-based achievement
+    #[napi]
+    pub fn increment(&self, request_id: i64, achievement_id: String, steps: i64) -> Result<()> {
+        let steps = u64::try_from(steps)
+            .map_err(|_| Error::from_reason("steps must be a non-negative integer"))?;
+
+        self.inner
+            .increment(request_id, &achievement_id, steps)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Open the TapTap achievements page
+    #[napi(js_name = "showAchievements")]
+    pub fn show_achievements(&self) -> Result<()> {
+        self.inner
+            .show_achievements()
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 }

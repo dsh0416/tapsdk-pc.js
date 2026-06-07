@@ -9,6 +9,7 @@ import type {
   TapEvent,
   AuthToken,
   SdkError,
+  AchievementInfo,
   CloudSaveInfo,
   CreateSaveRequest,
   UpdateSaveRequest,
@@ -22,6 +23,8 @@ import type {
   CloudSaveDeleteEvent,
   CloudSaveGetDataEvent,
   CloudSaveGetCoverEvent,
+  AchievementUnlockEvent,
+  AchievementIncrementEvent,
   UnknownEvent,
 } from 'tapsdk-pc';
 ```
@@ -137,6 +140,25 @@ interface UpdateSaveRequest {
 }
 ```
 
+## Achievement Types
+
+### AchievementInfo
+
+Information about an achievement returned from unlock and increment events.
+
+```typescript
+interface AchievementInfo {
+  /** Achievement ID */
+  id: string;
+  /** Achievement name */
+  name: string;
+  /** Current progress steps */
+  currentSteps: number;
+  /** Whether this request newly unlocked the achievement */
+  newlyUnlocked: boolean;
+}
+```
+
 ## Event Types
 
 ### SystemStateChangedEvent
@@ -241,6 +263,30 @@ interface CloudSaveGetCoverEvent {
   requestId: number;
   error?: SdkError;
   data: Buffer;
+}
+```
+
+### AchievementUnlockEvent
+
+```typescript
+interface AchievementUnlockEvent {
+  eventId: typeof EventId.ACHIEVEMENT_UNLOCK; // 7001
+  requestId: number;
+  error?: SdkError;
+  achievement?: AchievementInfo;
+  platinumAchievement?: AchievementInfo;
+}
+```
+
+### AchievementIncrementEvent
+
+```typescript
+interface AchievementIncrementEvent {
+  eventId: typeof EventId.ACHIEVEMENT_INCREMENT; // 7002
+  requestId: number;
+  error?: SdkError;
+  achievement?: AchievementInfo;
+  platinumAchievement?: AchievementInfo;
 }
 ```
 

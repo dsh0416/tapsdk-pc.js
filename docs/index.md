@@ -26,6 +26,9 @@ features:
   - icon: ☁️
     title: Cloud Saves
     details: Full cloud save support - create, update, download, and manage game saves.
+  - icon: 🏆
+    title: Achievements
+    details: Unlock achievements, track step-based progress, and open the TapTap achievements page.
   - icon: ⚡
     title: Native Performance
     details: Built with Rust and NAPI-RS for native Node.js performance.

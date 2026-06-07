@@ -37,6 +37,8 @@ const EventId = {
   CLOUD_SAVE_DELETE: 6004,
   CLOUD_SAVE_GET_DATA: 6005,
   CLOUD_SAVE_GET_COVER: 6006,
+  ACHIEVEMENT_UNLOCK: 7001,
+  ACHIEVEMENT_INCREMENT: 7002,
 };
 ```
 
@@ -250,6 +252,47 @@ interface CloudSaveGetCoverEvent {
   requestId: number;
   error?: SdkError;
   data: Buffer;
+}
+```
+
+## Achievement Events
+
+### AchievementUnlockEvent
+
+Response to `achievement.unlock()`.
+
+```typescript
+interface AchievementUnlockEvent {
+  eventId: 7001;  // EventId.ACHIEVEMENT_UNLOCK
+  requestId: number;
+  error?: SdkError;
+  achievement?: AchievementInfo;
+  platinumAchievement?: AchievementInfo;
+}
+```
+
+### AchievementIncrementEvent
+
+Response to `achievement.increment()`.
+
+```typescript
+interface AchievementIncrementEvent {
+  eventId: 7002;  // EventId.ACHIEVEMENT_INCREMENT
+  requestId: number;
+  error?: SdkError;
+  achievement?: AchievementInfo;
+  platinumAchievement?: AchievementInfo;
+}
+```
+
+### AchievementInfo
+
+```typescript
+interface AchievementInfo {
+  id: string;
+  name: string;
+  currentSteps: number;
+  newlyUnlocked: boolean;
 }
 ```
 

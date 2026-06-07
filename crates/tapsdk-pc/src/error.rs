@@ -105,6 +105,53 @@ impl From<u32> for CloudSaveResult {
     }
 }
 
+/// Generic TapSDK operation result.
+///
+/// Newer SDK modules such as achievements use this shared return type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SdkResult {
+    /// Request initiated successfully
+    Ok,
+    /// SDK not initialized
+    Uninitialized,
+    /// TapTap client not running
+    NoTapTapClient,
+    /// TapTap client outdated
+    TapTapClientOutdated,
+    /// Invalid argument
+    InvalidArgument,
+    /// SDK internal failure
+    SdkFailed,
+    /// TapTap client is not logged in
+    TapTapClientNotLoggedIn,
+    /// Unknown error
+    UnknownError,
+    /// Network error
+    NetworkError,
+    /// User does not have permission or service is not enabled
+    ForbiddenError,
+    /// Unknown result code
+    Unknown(u32),
+}
+
+impl From<u32> for SdkResult {
+    fn from(code: u32) -> Self {
+        match code {
+            0 => SdkResult::Ok,
+            1 => SdkResult::Uninitialized,
+            2 => SdkResult::NoTapTapClient,
+            3 => SdkResult::TapTapClientOutdated,
+            4 => SdkResult::InvalidArgument,
+            5 => SdkResult::SdkFailed,
+            6 => SdkResult::TapTapClientNotLoggedIn,
+            7 => SdkResult::UnknownError,
+            8 => SdkResult::NetworkError,
+            9 => SdkResult::ForbiddenError,
+            _ => SdkResult::Unknown(code),
+        }
+    }
+}
+
 /// System state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SystemState {
@@ -148,6 +195,10 @@ pub enum TapSdkError {
     /// Cloud save operation failed to start
     #[error("Cloud save request failed: {0:?}")]
     CloudSaveRequestFailed(CloudSaveResult),
+
+    /// SDK operation failed to start
+    #[error("SDK request failed: {0:?}")]
+    SdkRequestFailed(SdkResult),
 
     /// API error returned from the SDK
     #[error("API error ({code}): {message}")]

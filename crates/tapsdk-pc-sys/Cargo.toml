@@ -11,7 +11,7 @@ links = "taptap_api"
 include = ["src/**/*", "sdk/**/*", "build.rs", "wrapper.h"]
 
 [package.metadata.tapsdk]
-upstream-version = "4.1.1"
+upstream-version = "4.4.1"
 
 [build-dependencies]
 bindgen = "0.72"

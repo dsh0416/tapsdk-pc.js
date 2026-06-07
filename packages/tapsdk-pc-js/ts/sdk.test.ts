@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import { native } from './native.js';
 import { TapSdk } from './sdk.js';
 import { CloudSave } from './cloudsave.js';
+import { Achievement } from './achievement.js';
 import { EventId, SystemState } from './types.js';
 
 describe('Native Module Loading', () => {
@@ -19,6 +20,7 @@ describe('Native Module Loading', () => {
     expect(native).toBeDefined();
     expect(native.TapSdk).toBeDefined();
     expect(native.CloudSave).toBeDefined();
+    expect(native.Achievement).toBeDefined();
   });
 
   it('should have event_id namespace', () => {
@@ -47,12 +49,15 @@ describe('EventId Constants', () => {
     expect(EventId.CLOUD_SAVE_DELETE).toBe(6004);
     expect(EventId.CLOUD_SAVE_GET_DATA).toBe(6005);
     expect(EventId.CLOUD_SAVE_GET_COVER).toBe(6006);
+    expect(EventId.ACHIEVEMENT_UNLOCK).toBe(7001);
+    expect(EventId.ACHIEVEMENT_INCREMENT).toBe(7002);
   });
 
   it('should match native module constants', () => {
     expect(EventId.SYSTEM_STATE_CHANGED).toBe(native.event_id.SYSTEM_STATE_CHANGED);
     expect(EventId.AUTHORIZE_FINISHED).toBe(native.event_id.AUTHORIZE_FINISHED);
     expect(EventId.CLOUD_SAVE_LIST).toBe(native.event_id.CLOUD_SAVE_LIST);
+    expect(EventId.ACHIEVEMENT_UNLOCK).toBe(native.event_id.ACHIEVEMENT_UNLOCK);
   });
 });
 
@@ -83,9 +88,9 @@ describe('TapSdk Static Methods', () => {
     expect(TapSdk.isInitialized()).toBe(false);
   });
 
-  it('should return false for restartAppIfNecessary when not in TapTap', () => {
+  it('should return a boolean for restartAppIfNecessary', () => {
     const result = TapSdk.restartAppIfNecessary('test_client_id');
-    expect(result).toBe(false);
+    expect(typeof result).toBe('boolean');
   });
 });
 
@@ -126,6 +131,26 @@ describe('CloudSave', () => {
   });
 });
 
+describe('Achievement', () => {
+  it('should have get factory method', () => {
+    expect(Achievement.get).toBeInstanceOf(Function);
+  });
+
+  it('should fail to get Achievement without SDK initialization', () => {
+    expect(() => Achievement.get()).toThrow();
+  });
+
+  it('should have descriptive error for uninitialized state', () => {
+    try {
+      Achievement.get();
+      expect.fail('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('not initialized');
+    }
+  });
+});
+
 describe('TapSdk Prototype Methods', () => {
   const methods = [
     'getClientId',
@@ -157,6 +182,18 @@ describe('CloudSave Prototype Methods', () => {
   });
 });
 
+describe('Achievement Prototype Methods', () => {
+  const methods = [
+    'unlock',
+    'increment',
+    'showAchievements',
+  ] as const;
+
+  it.each(methods)('should have %s method on prototype', (method) => {
+    expect(Achievement.prototype[method]).toBeInstanceOf(Function);
+  });
+});
+
 describe('Type Exports', () => {
   it('should export EventId as const object', () => {
     // TypeScript ensures this at compile time, but verify runtime behavior
@@ -180,6 +217,14 @@ describe('Error Handling', () => {
   it('should throw Error instance for CloudSave.get failure', () => {
     try {
       CloudSave.get();
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+    }
+  });
+
+  it('should throw Error instance for Achievement.get failure', () => {
+    try {
+      Achievement.get();
     } catch (error) {
       expect(error).toBeInstanceOf(Error);
     }

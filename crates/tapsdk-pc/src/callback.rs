@@ -19,6 +19,8 @@ pub mod event_id {
     pub const CLOUD_SAVE_DELETE: u32 = 6004;
     pub const CLOUD_SAVE_GET_DATA: u32 = 6005;
     pub const CLOUD_SAVE_GET_COVER: u32 = 6006;
+    pub const ACHIEVEMENT_UNLOCK: u32 = 7001;
+    pub const ACHIEVEMENT_INCREMENT: u32 = 7002;
 }
 
 /// Authorization token returned after successful authorization
@@ -105,6 +107,24 @@ pub struct CloudSaveGetFileData {
     pub data: Vec<u8>,
 }
 
+/// Achievement information
+#[derive(Debug, Clone)]
+pub struct AchievementInfo {
+    pub id: String,
+    pub name: String,
+    pub current_steps: u64,
+    pub newly_unlocked: bool,
+}
+
+/// Achievement unlock/increment response
+#[derive(Debug, Clone)]
+pub struct AchievementData {
+    pub request_id: i64,
+    pub error: Option<(i64, String)>,
+    pub achievement: Option<AchievementInfo>,
+    pub platinum_achievement: Option<AchievementInfo>,
+}
+
 /// Events that can be received from the SDK
 #[derive(Debug, Clone)]
 pub enum TapEvent {
@@ -128,6 +148,10 @@ pub enum TapEvent {
     CloudSaveGetData(CloudSaveGetFileData),
     /// Cloud save get cover response
     CloudSaveGetCover(CloudSaveGetFileData),
+    /// Achievement unlock response
+    AchievementUnlock(AchievementData),
+    /// Achievement increment response
+    AchievementIncrement(AchievementData),
     /// Unknown event
     Unknown { event_id: u32 },
 }
@@ -162,6 +186,11 @@ pub fn register_callbacks() {
         );
         tapsdk_pc_sys::TapSDK_RegisterCallback(
             event_id::CLOUD_SAVE_GET_COVER,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::ACHIEVEMENT_UNLOCK, Some(global_callback));
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::ACHIEVEMENT_INCREMENT,
             Some(global_callback),
         );
     }
@@ -205,6 +234,14 @@ pub fn unregister_callbacks() {
         );
         tapsdk_pc_sys::TapSDK_UnregisterCallback(
             event_id::CLOUD_SAVE_GET_COVER,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::ACHIEVEMENT_UNLOCK,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::ACHIEVEMENT_INCREMENT,
             Some(global_callback),
         );
     }
@@ -419,6 +456,26 @@ unsafe fn parse_event(event_id: u32, data: *mut std::ffi::c_void) -> TapEvent {
             }
         }
 
+        event_id::ACHIEVEMENT_UNLOCK | event_id::ACHIEVEMENT_INCREMENT => {
+            if data.is_null() {
+                return TapEvent::Unknown { event_id };
+            }
+
+            let response = &*(data as *const tapsdk_pc_sys::TapAchievementUnlockResponse);
+            let event_data = AchievementData {
+                request_id: response.request_id,
+                error: parse_sdk_error(response.error),
+                achievement: parse_achievement_info(response.achievement),
+                platinum_achievement: parse_achievement_info(response.platinum_achievement),
+            };
+
+            if event_id == event_id::ACHIEVEMENT_UNLOCK {
+                TapEvent::AchievementUnlock(event_data)
+            } else {
+                TapEvent::AchievementIncrement(event_data)
+            }
+        }
+
         _ => TapEvent::Unknown { event_id },
     }
 }
@@ -453,6 +510,23 @@ unsafe fn parse_cloud_save_info(info: &tapsdk_pc_sys::TapCloudSaveInfo) -> Cloud
         created_time: info.created_time,
         modified_time: info.modified_time,
     }
+}
+
+/// Parse achievement info from raw pointer
+unsafe fn parse_achievement_info(
+    info: *const tapsdk_pc_sys::TapAchievementInfo,
+) -> Option<AchievementInfo> {
+    if info.is_null() {
+        return None;
+    }
+
+    let info = &*info;
+    Some(AchievementInfo {
+        id: ptr_to_string(info.id),
+        name: ptr_to_string(info.name),
+        current_steps: info.current_steps,
+        newly_unlocked: info.newly_unlocked,
+    })
 }
 
 /// Convert a C string pointer to a Rust String

@@ -8,6 +8,7 @@ This section provides detailed documentation for all classes, methods, and types
 |-------|-------------|
 | [TapSdk](/api/tapsdk) | Main SDK class for initialization, authentication, and ownership |
 | [CloudSave](/api/cloudsave) | Cloud save functionality for game saves |
+| [Achievement](/api/achievement) | Achievement unlock, progress, and display functionality |
 
 ## Exports
 
@@ -18,6 +19,7 @@ import {
   // Classes
   TapSdk,
   CloudSave,
+  Achievement,
   
   // Constants
   EventId,
@@ -27,6 +29,7 @@ import {
   type TapEvent,
   type AuthToken,
   type SdkError,
+  type AchievementInfo,
   type CloudSaveInfo,
   type CreateSaveRequest,
   type UpdateSaveRequest,
@@ -64,6 +67,15 @@ import {
 | `cloudSave.getData(requestId, uuid, fileId)` | Download save data |
 | `cloudSave.getCover(requestId, uuid, fileId)` | Download save cover |
 
+### Achievement Methods
+
+| Method | Description |
+|--------|-------------|
+| `Achievement.get()` | Get singleton instance |
+| `achievement.unlock(requestId, achievementId)` | Unlock an achievement |
+| `achievement.increment(requestId, achievementId, steps)` | Increment a step-based achievement |
+| `achievement.showAchievements()` | Open the TapTap achievements page |
+
 ### Event Types
 
 | Event ID | Constant | Description |
@@ -78,3 +90,5 @@ import {
 | 6004 | `CLOUD_SAVE_DELETE` | Save deleted |
 | 6005 | `CLOUD_SAVE_GET_DATA` | Save data downloaded |
 | 6006 | `CLOUD_SAVE_GET_COVER` | Cover image downloaded |
+| 7001 | `ACHIEVEMENT_UNLOCK` | Achievement unlock response |
+| 7002 | `ACHIEVEMENT_INCREMENT` | Achievement increment response |

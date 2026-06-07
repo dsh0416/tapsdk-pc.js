@@ -9,7 +9,7 @@ homepage = "https://dsh0416.github.io/tapsdk-pc.js/"
 documentation = "https://docs.rs/tapsdk-pc"
 
 [package.metadata.tapsdk]
-upstream-version = "4.1.1"
+upstream-version = "4.4.1"
 
 [dependencies]
 tapsdk-pc-sys.workspace = true

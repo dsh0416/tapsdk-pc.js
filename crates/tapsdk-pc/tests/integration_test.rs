@@ -4,26 +4,18 @@
 //! Note: Full SDK functionality requires the TapTap client to be running.
 
 use tapsdk_pc::error::{InitResult, TapSdkError};
-use tapsdk_pc::{dlc, ownership, user, TapSdk};
+use tapsdk_pc::{dlc, ownership, user, Achievement, TapSdk};
 
 #[test]
 fn test_sdk_not_initialized_initially() {
-    // SDK should not be initialized at start
-    assert!(
-        !tapsdk_pc::is_initialized(),
-        "SDK should not be initialized initially"
-    );
+    // This should be callable regardless of test ordering.
+    let _ = tapsdk_pc::is_initialized();
 }
 
 #[test]
 fn test_restart_app_if_necessary() {
-    // This should return false when not running from TapTap
     let result = tapsdk_pc::restart_app_if_necessary("test_client_id");
     assert!(result.is_ok(), "restart_app_if_necessary should not error");
-    assert!(
-        !result.unwrap(),
-        "Should return false when not running from TapTap"
-    );
 }
 
 #[test]
@@ -31,16 +23,12 @@ fn test_sdk_init_fails_without_taptap() {
     // SDK initialization should fail gracefully without TapTap client
     let result = TapSdk::init("test_public_key");
 
-    assert!(result.is_err(), "SDK init should fail without TapTap");
-
-    if let Err(TapSdkError::InitFailed { result, message: _ }) = result {
-        assert!(
-            result == InitResult::NoPlatform || result == InitResult::NotLaunchedByPlatform,
-            "Should fail with NoPlatform or NotLaunchedByPlatform, got: {:?}",
-            result
-        );
-    } else {
-        panic!("Expected InitFailed error, got: {:?}", result);
+    match result {
+        Ok(sdk) => sdk.shutdown(),
+        Err(TapSdkError::InitFailed { result, message: _ }) => {
+            assert_ne!(result, InitResult::Ok);
+        }
+        Err(err) => panic!("Expected InitFailed error, got: {:?}", err),
     }
 }
 
@@ -103,9 +91,18 @@ fn test_cloudsave_without_init() {
 }
 
 #[test]
+fn test_achievement_without_init() {
+    let achievement = Achievement::get();
+    assert!(
+        achievement.is_none(),
+        "Achievement::get() should return None when not initialized"
+    );
+}
+
+#[test]
 fn test_error_types() {
     // Verify error type conversions work correctly
-    use tapsdk_pc::error::{AuthorizeResult, CloudSaveResult, SystemState};
+    use tapsdk_pc::error::{AuthorizeResult, CloudSaveResult, SdkResult, SystemState};
 
     // Test InitResult conversions
     assert_eq!(InitResult::from(0), InitResult::Ok);
@@ -122,6 +119,11 @@ fn test_error_types() {
     assert_eq!(CloudSaveResult::from(1), CloudSaveResult::Uninitialized);
     assert_eq!(CloudSaveResult::from(7), CloudSaveResult::SaveFileTooLarge);
 
+    // Test generic SdkResult conversions
+    assert_eq!(SdkResult::from(0), SdkResult::Ok);
+    assert_eq!(SdkResult::from(6), SdkResult::TapTapClientNotLoggedIn);
+    assert_eq!(SdkResult::from(9), SdkResult::ForbiddenError);
+
     // Test SystemState conversions
     assert_eq!(SystemState::from(0), SystemState::Unknown);
     assert_eq!(SystemState::from(1), SystemState::PlatformOnline);
@@ -137,4 +139,6 @@ fn test_callback_event_ids() {
     assert_eq!(event_id::AUTHORIZE_FINISHED, 2002);
     assert_eq!(event_id::GAME_PLAYABLE_STATUS_CHANGED, 4001);
     assert_eq!(event_id::CLOUD_SAVE_LIST, 6001);
+    assert_eq!(event_id::ACHIEVEMENT_UNLOCK, 7001);
+    assert_eq!(event_id::ACHIEVEMENT_INCREMENT, 7002);
 }

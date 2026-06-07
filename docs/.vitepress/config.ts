@@ -37,6 +37,7 @@ export default defineConfig({
             { text: 'Overview', link: '/api/' },
             { text: 'TapSdk', link: '/api/tapsdk' },
             { text: 'CloudSave', link: '/api/cloudsave' },
+            { text: 'Achievement', link: '/api/achievement' },
             { text: 'Events', link: '/api/events' },
             { text: 'Types', link: '/api/types' },
           ],

@@ -30,6 +30,10 @@ fn build_windows() {
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed={}/taptap_api.h", sdk_dir.display());
     println!(
+        "cargo:rerun-if-changed={}/taptap_achievement.h",
+        sdk_dir.display()
+    );
+    println!(
         "cargo:rerun-if-changed={}/taptap_cloudsave.h",
         sdk_dir.display()
     );
@@ -61,6 +65,7 @@ fn build_windows() {
         .allowlist_function("TapUser_.*")
         .allowlist_function("TapApps_.*")
         .allowlist_function("TapDLC_.*")
+        .allowlist_function("TapAchievement.*")
         .allowlist_function("TapCloudSave.*")
         // Allow all types
         .allowlist_type(".*")
@@ -114,6 +119,7 @@ use std::os::raw::{c_char, c_void};
 // Stub types - these are never instantiated, all functions panic
 pub type TapCloudSaveHandle = *mut c_void;
 pub type ITapCloudSave = c_void;
+pub type ITapAchievement = c_void;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -234,6 +240,46 @@ pub struct TapCloudSaveGetFileRequest {
     pub file_id: *const c_char,
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TapAchievementInfo {
+    pub id: *const c_char,
+    pub name: *const c_char,
+    pub current_steps: u64,
+    pub newly_unlocked: bool,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TapAchievementUnlockRequest {
+    pub achievement_id: *const c_char,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TapAchievementUnlockResponse {
+    pub request_id: i64,
+    pub error: *const TapSDK_Error,
+    pub achievement: *const TapAchievementInfo,
+    pub platinum_achievement: *const TapAchievementInfo,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TapAchievementIncrementRequest {
+    pub achievement_id: *const c_char,
+    pub steps: u64,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct TapAchievementIncrementResponse {
+    pub request_id: i64,
+    pub error: *const TapSDK_Error,
+    pub achievement: *const TapAchievementInfo,
+    pub platinum_achievement: *const TapAchievementInfo,
+}
+
 // Callback type
 pub type TapCallback = Option<unsafe extern "C" fn(event_id: u32, data: *mut c_void)>;
 
@@ -300,6 +346,34 @@ pub unsafe extern "C" fn TapDLC_IsOwned(_dlc_id: *const c_char) -> bool {
 
 #[no_mangle]
 pub unsafe extern "C" fn TapDLC_ShowStore(_dlc_id: *const c_char) -> bool {
+    unsupported()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn TapAchievement() -> *mut ITapAchievement {
+    unsupported()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn TapAchievement_AsyncUnlock(
+    _handle: *mut ITapAchievement,
+    _request_id: i64,
+    _request: *const TapAchievementUnlockRequest,
+) -> u32 {
+    unsupported()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn TapAchievement_AsyncIncrement(
+    _handle: *mut ITapAchievement,
+    _request_id: i64,
+    _request: *const TapAchievementIncrementRequest,
+) -> u32 {
+    unsupported()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn TapAchievement_ShowAchievements(_handle: *mut ITapAchievement) -> u32 {
     unsupported()
 }
 

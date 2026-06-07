@@ -8,11 +8,13 @@
 
 export { TapSdk } from './sdk.js';
 export { CloudSave } from './cloudsave.js';
+export { Achievement } from './achievement.js';
 export {
   EventId,
   SystemState,
   type AuthToken,
   type SdkError,
+  type AchievementInfo,
   type CloudSaveInfo,
   type CreateSaveRequest,
   type UpdateSaveRequest,
@@ -26,6 +28,8 @@ export {
   type CloudSaveDeleteEvent,
   type CloudSaveGetDataEvent,
   type CloudSaveGetCoverEvent,
+  type AchievementUnlockEvent,
+  type AchievementIncrementEvent,
   type UnknownEvent,
   type TapEvent,
   type TapSdkEvents,

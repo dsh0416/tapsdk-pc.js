@@ -60,7 +60,7 @@ typedef uint32_t TapSDK_Init_Result;
 
 // 授权结果枚举值
 enum {
-    TapUser_AsyncAuthorize_Result_Unknown = 0, // 未知错误，无法请求授权，请检查 SDK 是否完成初始化 (调用 TapSDK_Init 并返回 TapSDK_Init_Result::OK)}
+    TapUser_AsyncAuthorize_Result_Unknown = 0, // 未知错误，无法请求授权，请检查 SDK 是否完成初始化 (调用 TapSDK_Init 并返回 TapSDK_Init_Result::OK)
     TapUser_AsyncAuthorize_Result_OK = 1,      // 成功发起授权流程，等待用户确认或者自动授权完成（此时授权流程还未完成）
     TapUser_AsyncAuthorize_Result_Failed = 2,  // 发起授权流程失败，可能的原因：1. 用户网络问题，2. TapTap 平台内部错误。请引导用户稍后重试
     TapUser_AsyncAuthorize_Result_InFlight = 3 // 授权流程正在执行中，请等待授权流程完成
@@ -70,35 +70,77 @@ typedef uint32_t TapUser_AsyncAuthorize_Result;
 
 #endif
 
+// TapSDK 接口返回值枚举值
+enum {
+	// [0, 1000) 预留给通用错误
+	TapSDK_Result_OK = 0,
+	TapSDK_Result_Uninitialized = 1, // SDK 未初始化，请调用 TapSDK_Init 并确保返回为 TapSDK_Init_Result::OK
+	TapSDK_Result_NoTapTapClient = 2, // TapTap 客户端尚未运行
+	TapSDK_Result_TapTapClientOutdated = 3, // TapTap 客户端版本过旧，请引导用户更新最新版 TapTap 客户端
+	TapSDK_Result_InvalidArgument = 4, // 参数错误，比如不允许 NULL 的参数传了 NULL
+	TapSDK_Result_SdkFailed = 5, // SDK内部错误
+	TapSDK_Result_TapTapClientNotLoggedIn = 6, // TapTap 客户端未登录
+	TapSDK_Result_UnknownError = 7, // 未知错误
+	TapSDK_Result_NetworkError = 8, // 网络错误
+	TapSDK_Result_ForbiddenError = 9, // 用户没有当前动作的权限（如对应游戏服务未开通）
+};
+// TapSDK 接口返回值，取值请参考枚举值 TapSDK_Result_*
+//   - 注意：由于历史原因，部分接口（如初始化、授权、云存档）的返回值不是 TapSDK_Result 类型，请参考对应接口的文档说明
+typedef uint32_t TapSDK_Result;
+
 // 错误码枚举值
 enum {
-  TapSDK_ErrorCode_Success = 0,              // 请求执行成功
-  TapSDK_ErrorCode_Unknown = 1,              // 未知错误
-  TapSDK_ErrorCode_Unauthorized = 2,         // 用户凭证失效，请引导用户重新登录 TapTap
-  TapSDK_ErrorCode_MethodNotAllowed = 3,     // 不允许的接口请求
-  TapSDK_ErrorCode_Unimplemented = 4,        // 接口未实现
-  TapSDK_ErrorCode_InvalidArguments = 5,     // 参数错误
-  TapSDK_ErrorCode_Forbidden = 6,            // 用户没有当前动作的权限
-  TapSDK_ErrorCode_UserIsDeactivated = 7,    // 用户被冻结
-  TapSDK_ErrorCode_InternalServerError = 8,  // 服务器内部错误
-  TapSDK_ErrorCode_InternalSdkError = 9,     // SDK内部错误
-  TapSDK_ErrorCode_NetworkError = 10,        // 网络错误
+	TapSDK_ErrorCode_Success = 0,              // 请求执行成功
+	TapSDK_ErrorCode_Unknown = 1,              // 未知错误
+	TapSDK_ErrorCode_Unauthorized = 2,         // 用户凭证失效，请引导用户重新登录 TapTap
+	TapSDK_ErrorCode_MethodNotAllowed = 3,     // 不允许的接口请求
+	TapSDK_ErrorCode_Unimplemented = 4,        // 接口未实现
+	TapSDK_ErrorCode_InvalidArguments = 5,     // 参数错误
+	TapSDK_ErrorCode_Forbidden = 6,            // 用户没有当前动作的权限
+	TapSDK_ErrorCode_UserIsDeactivated = 7,    // 用户被冻结
+	TapSDK_ErrorCode_InternalServerError = 8,  // 服务器内部错误
+	TapSDK_ErrorCode_InternalSdkError = 9,     // SDK内部错误
+	TapSDK_ErrorCode_NetworkError = 10,        // 网络错误
+	TapSDK_ErrorCode_NotFound = 11,            // 数据不存在
+	TapSDK_ErrorCode_InsufficientScope = 12,   // 当前用户未授权获取此产品/服务，提示权限不足
 
 	// reserved 200000 ~ 299999 防沉迷使用
 
 	// reserved 400000 ~ 499999 云存档使用
-  TapSDK_ErrorCode_CloudSave_InvalidFileSize = 400000,               // 非法的存档文件/封面大小
-  TapSDK_ErrorCode_CloudSave_UploadRateLimit = 400001,               // 存档上传频率超限
-  TapSDK_ErrorCode_CloudSave_FileNotFound = 400002,                  // 存档文件不存在
-  TapSDK_ErrorCode_CloudSave_FileCountLimitPerClient = 400003,       // 用户在该用下存档文件数量超限
-  TapSDK_ErrorCode_CloudSave_StorageSizeLimitPerClient = 400004,     // 用户在该应用下使用存储空间超限
-  TapSDK_ErrorCode_CloudSave_TotalStorageSizeLimit = 400005,         // 用户总使用存储空间超限
-  TapSDK_ErrorCode_CloudSave_Timeout = 400006,                       // 请求超时，通常是由于网络卡顿，创建/更新存档耗时过长导致
-  TapSDK_ErrorCode_CloudSave_ConcurrentCallDisallowed = 400007,      // 不允许并发调用的请求
-  TapSDK_ErrorCode_CloudSave_StorageServerError = 400008,            // 存储服务故障
-  TapSDK_ErrorCode_CloudSave_InvalidName = 400009,                   // 存档名称不合法
+	TapSDK_ErrorCode_CloudSave_InvalidFileSize = 400000,               // 非法的存档文件/封面大小
+	TapSDK_ErrorCode_CloudSave_UploadRateLimit = 400001,               // 存档上传频率超限
+	TapSDK_ErrorCode_CloudSave_FileNotFound = 400002,                  // 存档文件不存在
+	TapSDK_ErrorCode_CloudSave_FileCountLimitPerClient = 400003,       // 用户在该应用下存档文件数量超限
+	TapSDK_ErrorCode_CloudSave_StorageSizeLimitPerClient = 400004,     // 用户在该应用下使用存储空间超限
+	TapSDK_ErrorCode_CloudSave_TotalStorageSizeLimit = 400005,         // 用户总使用存储空间超限
+	TapSDK_ErrorCode_CloudSave_Timeout = 400006,                       // 请求超时，通常是由于网络卡顿，创建/更新存档耗时过长导致
+	TapSDK_ErrorCode_CloudSave_ConcurrentCallDisallowed = 400007,      // 不允许并发调用的请求
+	TapSDK_ErrorCode_CloudSave_StorageServerError = 400008,            // 存储服务故障
+	TapSDK_ErrorCode_CloudSave_InvalidName = 400009,                   // 存档名称不合法
 
 	// reserved 500000 ~ 599999 排行榜使用
+	TapSDK_ErrorCode_Leaderboard_PeriodExpired       = 500000, // 排行榜周期已过期，提示用户查看其他周期
+	TapSDK_ErrorCode_Leaderboard_NotFound            = 500001, // 排行榜 ID 未找到，检查 ID 是否正确
+	TapSDK_ErrorCode_Leaderboard_InvalidArgument     = 500002, // 参数错误，如 leaderboard_id 与 client_id 不匹配
+
+	// 联机游戏：600000 ~ 699999
+	TapSDK_ErrorCode_OnlineGame_RequestRateLimitExceeded     = 600001, // 请求频率超限
+	TapSDK_ErrorCode_OnlineGame_MaliciousUser                = 600002, // 被认定为恶意用户，拒绝请求或关闭连接。建议不要重连
+	TapSDK_ErrorCode_OnlineGame_TooManyConnections           = 600003, // 因同时连接数过多而被踢下线。建议不要重连，避免互踢，导致重连死循环
+	TapSDK_ErrorCode_OnlineGame_InvalidAuthorization         = 600004, // 认证信息不合法，通常不会发生。如果发生，可以尝试重连
+	TapSDK_ErrorCode_OnlineGame_Unauthorized                 = 600005, // 尚未完成建连认证，通常不会发生。如果发生，可以尝试重连
+	TapSDK_ErrorCode_OnlineGame_AlreadyConnected             = 600006, // 已经建连，不能重复建连。Connect成功后，二次调用Connect会返回此错误
+	TapSDK_ErrorCode_OnlineGame_PreviousRequestInProgress    = 600007, // 上一个请求未完成，不接受新的请求
+	TapSDK_ErrorCode_OnlineGame_NotInRoom                    = 600009, // 尚未加入房间
+	TapSDK_ErrorCode_OnlineGame_AlreadyInRoom                = 600010, // 已经在房间中，不能重复加入
+	TapSDK_ErrorCode_OnlineGame_NotRoomOwner                 = 600011, // 不是房主，不能执行此操作
+	TapSDK_ErrorCode_OnlineGame_RoomFull                     = 600012, // 房间已满，不能加入
+	TapSDK_ErrorCode_OnlineGame_RoomNotExist                 = 600013, // 房间不存在
+	TapSDK_ErrorCode_OnlineGame_FrameSyncNotStarted          = 600014, // 帧同步未开始，不能执行此操作
+	TapSDK_ErrorCode_OnlineGame_FrameSyncAlreadyStarted      = 600015, // 帧同步已开始，不能执行此操作
+	TapSDK_ErrorCode_OnlineGame_FrameInputSizeLimitExceeded  = 600016, // 对战帧数据大小超过限制
+	TapSDK_ErrorCode_OnlineGame_FrameInputCountLimitExceeded = 600017, // 每帧可接受的输入数量超过限制
+	TapSDK_ErrorCode_OnlineGame_PlayerNotFound               = 600018  // 玩家不存在
 };
 // 错误码，取值请参考枚举值 TapSDK_ErrorCode_*
 typedef int64_t TapSDK_ErrorCode;
@@ -139,18 +181,33 @@ enum class TapEventID : uint32_t {
 
   // [2001, 4000), reserved for TapTap user events
   AuthorizeFinished = 2002,
+  UserGetApprovedScopes = 2003, // 获取用户当前授权范围回调，使用 TapUserGetApprovedScopesResponse 结构体解析
 
   // [4001, 6000), reserved for TapTap ownership events
   GamePlayableStatusChanged = 4001,
   DLCPlayableStatusChanged = 4002,
 
-  // [6001, 8000), reserved for TapTap CloudSave events
+  // [6001, 7000), reserved for TapTap CloudSave events
   CloudSaveList = 6001,     // 获取云存档列表
   CloudSaveCreate = 6002,   // 创建云存档
   CloudSaveUpdate = 6003,   // 更新云存档
   CloudSaveDelete = 6004,   // 删除云存档
   CloudSaveGetData = 6005,  // 获取云存档数据
   CloudSaveGetCover = 6006, // 获取云存档封面
+
+  // [7001, 8000), reserved for TapTap Achievement events
+  AchievementUnlock = 7001,    // 解锁成就
+  AchievementIncrement = 7002, // 分步成就增长步长
+
+  // [8001, 9000), reserved for TapTap Compliance events
+  ComplianceEnsureRealName = 8001, // 检查实名
+  ComplianceActionsEvent = 8002, // 防沉迷动作推送
+
+  // [9001, 10000), reserved for TapTap Leaderboard events
+  LeaderboardSubmitScores = 9001,        // 提交分数回调
+  LeaderboardLoadScores = 9002,          // 获取排行榜数据回调
+  LeaderboardLoadMyScores = 9003,        // 获取当前用户分数回调
+  LeaderboardLoadMyCenteredScores = 9004, // 获取用户相近分数回调
 };
 
 #else
@@ -167,18 +224,33 @@ enum {
 
   // [2001, 4000), reserved for TapTap user events
   TapEventID_AuthorizeFinished = 2002,
+  TapEventID_UserGetApprovedScopes = 2003, // 获取用户当前授权范围回调，使用 TapUserGetApprovedScopesResponse 结构体解析
 
   // [4001, 6000), reserved for TapTap ownership events
   TapEventID_GamePlayableStatusChanged = 4001,
   TapEventID_DLCPlayableStatusChanged = 4002,
 
-  // [6001, 8000), reserved for TapTap CloudSave events
+  // [6001, 7000), reserved for TapTap CloudSave events
   TapEventID_CloudSaveList = 6001,     // 获取云存档列表回调，使用 TapCloudSaveListResponse 结构体解析
   TapEventID_CloudSaveCreate = 6002,   // 创建云存档回调，使用 TapCloudSaveCreateResponse 结构体解析
   TapEventID_CloudSaveUpdate = 6003,   // 更新云存档回调，使用 TapCloudSaveUpdateResponse 结构体解析
   TapEventID_CloudSaveDelete = 6004,   // 删除云存档回调，使用 TapCloudSaveDeleteResponse 结构体解析
   TapEventID_CloudSaveGetData = 6005,  // 获取云存档数据回调，使用 TapCloudSaveGetFileResponse 结构体解析
   TapEventID_CloudSaveGetCover = 6006, // 获取云存档封面回调，使用 TapCloudSaveGetFileResponse 结构体解析
+
+  // [7001, 8000), reserved for TapTap Achievement events
+  TapEventID_AchievementUnlock = 7001,  // 获取成就解锁回调，使用 TapAchievementUnlockResponse 结构体解析
+  TapEventID_AchievementIncrement = 7002, // 获取分步成就步长增长回调，使用 TapAchievementIncrementResponse 结构体解析
+
+  // [8001, 9000), reserved for TapTap Compliance events
+  TapEventID_ComplianceEnsureRealName = 8001, // 检查实名回调，使用 TapComplianceEnsureRealNameResponse 结构体解析
+  TapEventID_ComplianceActionsEvent = 8002,   // 防沉迷动作推送，使用 TapComplianceActionsEvent 结构体解析
+
+  // [9001, 10000), reserved for TapTap Leaderboard events
+  TapEventID_LeaderboardSubmitScores = 9001,        // 提交分数回调，使用 TapLeaderboardSubmitScoresResponse 结构体解析
+  TapEventID_LeaderboardLoadScores = 9002,          // 获取排行榜数据回调，使用 TapLeaderboardLoadScoresResponse 结构体解析
+  TapEventID_LeaderboardLoadMyScores = 9003,        // 获取当前用户分数回调，使用 TapLeaderboardLoadMyScoresResponse 结构体解析
+  TapEventID_LeaderboardLoadMyCenteredScores = 9004, // 获取用户相近分数回调，使用 TapLeaderboardLoadMyCenteredScoresResponse 结构体解析
 };
 // 事件 ID
 typedef uint32_t TapEventID;
@@ -215,6 +287,14 @@ struct AuthorizeFinishedResponse {
     char mac_algorithm[32];
     char scope[1024];
 };
+
+// 拉取用户授权范围的响应
+typedef struct {
+    int64_t request_id;        // 请求 ID。原样返回开发者调用异步接口时传入的 ID，开发者可使用该 ID 对应到原始请求
+    const TapSDK_Error* error; // 错误信息。NULL 表示请求成功；非 NULL 表示请求失败，可根据其中的错误码做相应处理
+    uint32_t scope_count;      // 授权范围数量
+    const char** scopes;       // 用户当前授权范围数组
+} TapUserGetApprovedScopesResponse;
 
 //  游戏本体可玩状态变更事件响应结构体
 struct GamePlayableStatusChangedResponse {
@@ -262,12 +342,6 @@ T_API bool T_CALLTYPE TapSDK_Shutdown();
  */
 T_API bool T_CALLTYPE TapSDK_GetClientID(char *buffer);
 
-/**
- * 检查是否拥有当前游戏
- * @return true 表示拥有当前游戏，false 表示未拥有
- */
-T_API bool T_CALLTYPE TapApps_IsOwned();
-
 //------------------------------------------------------------------------------
 // 回调相关功能
 //------------------------------------------------------------------------------
@@ -292,6 +366,41 @@ T_API void T_CALLTYPE TapSDK_UnregisterCallback(TapEventID eventID, callback_t c
 T_API void T_CALLTYPE TapSDK_RunCallbacks();
 
 //------------------------------------------------------------------------------
+// 一致性随机数生成器
+//------------------------------------------------------------------------------
+
+/**
+ * 创建新的随机数生成器，线程安全
+ * @note 使用相同种子创建的随机数生成器，生成的随机数序列是相同的
+ * @param seed 随机数生成器的种子
+ * @return 返回随机数生成器ID，如果创建失败返回 0
+ */
+T_API int64_t T_CALLTYPE TapSDK_CreateRandomNumberGenerator(int32_t seed);
+
+/**
+ * 生成[0, 0x7fffffff]的随机整数，线程安全
+ * @param rand_generator_id TapSDK_CreateRandomNumberGenerator()返回的随机数生成器ID
+ * @return 返回随机正整数[0, 0x7fffffff]，如果随机数生成器已销毁返回 -1
+ */
+T_API int32_t T_CALLTYPE TapSDK_RandomInt(int64_t rand_generator_id);
+
+/**
+ * 销毁随机数生成器，线程安全。如果传入的随机数生成器ID无效/已销毁，则不做任何操作
+ * @param rand_generator_id TapSDK_CreateRandomNumberGenerator()返回的随机数生成器ID
+ */
+T_API void T_CALLTYPE TapSDK_DestroyRandomNumberGenerator(int64_t rand_generator_id);
+
+//------------------------------------------------------------------------------
+// App 相关功能
+//------------------------------------------------------------------------------
+
+/**
+ * 检查是否拥有当前游戏
+ * @return true 表示拥有当前游戏，false 表示未拥有
+ */
+T_API bool T_CALLTYPE TapApps_IsOwned();
+
+//------------------------------------------------------------------------------
 // 用户相关功能
 //------------------------------------------------------------------------------
 
@@ -301,6 +410,13 @@ T_API void T_CALLTYPE TapSDK_RunCallbacks();
  * @return 授权请求结果
  */
 T_API TapUser_AsyncAuthorize_Result T_CALLTYPE TapUser_AsyncAuthorize(const char* scopes);
+
+/**
+ * 异步获取用户当前的授权范围
+ * @param request_id 开发者生成的请求 ID，请求处理完成后，调用回调函数时原样返回，开发者可使用该 ID 对应到原始请求
+ * @return 请求发起结果，如果不是 TapSDK_Result_OK，表示请求发起失败，不会触发回调函数
+ */
+T_API TapSDK_Result T_CALLTYPE TapUser_AsyncGetApprovedScopes(int64_t request_id);
 
 /**
  * 获取用户 OpenID
