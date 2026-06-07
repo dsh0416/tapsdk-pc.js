@@ -56,8 +56,11 @@
 pub mod achievement;
 pub mod callback;
 pub mod cloudsave;
+pub mod compliance;
 pub mod dlc;
 pub mod error;
+pub mod leaderboard;
+pub mod onlinegame;
 pub mod ownership;
 pub mod sdk;
 pub mod user;
@@ -66,7 +69,10 @@ pub mod user;
 pub use achievement::Achievement;
 pub use callback::TapEvent;
 pub use cloudsave::CloudSave;
+pub use compliance::Compliance;
 pub use error::{Result, TapSdkError};
+pub use leaderboard::Leaderboard;
+pub use onlinegame::OnlineGame;
 pub use sdk::{is_initialized, restart_app_if_necessary, TapSdk};
 
 // Re-export the sys crate for advanced users

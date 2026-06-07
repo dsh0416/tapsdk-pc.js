@@ -9,6 +9,7 @@ use napi::bindgen_prelude::*;
 use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi_derive::napi;
 use serde::Serialize;
+use serde_json::json;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -46,6 +47,20 @@ pub mod event_id {
     pub const ACHIEVEMENT_UNLOCK: u32 = 7001;
     #[napi]
     pub const ACHIEVEMENT_INCREMENT: u32 = 7002;
+    #[napi]
+    pub const COMPLIANCE_ENSURE_REAL_NAME: u32 = 8001;
+    #[napi]
+    pub const COMPLIANCE_ACTIONS_EVENT: u32 = 8002;
+    #[napi]
+    pub const LEADERBOARD_SUBMIT_SCORES: u32 = 9001;
+    #[napi]
+    pub const LEADERBOARD_LOAD_SCORES: u32 = 9002;
+    #[napi]
+    pub const LEADERBOARD_LOAD_MY_SCORES: u32 = 9003;
+    #[napi]
+    pub const LEADERBOARD_LOAD_MY_CENTERED_SCORES: u32 = 9004;
+    #[napi]
+    pub const ONLINE_GAME_EVENT: u32 = 10001;
 }
 
 #[napi]
@@ -171,6 +186,116 @@ pub struct UpdateSaveRequest {
     pub data_file_path: String,
     /// Path to the cover image file (max 512KB, optional)
     pub cover_file_path: Option<String>,
+}
+
+/// Payment limit check response.
+#[napi(object)]
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentLimitResponse {
+    pub allow: bool,
+    pub title: String,
+    pub description: String,
+}
+
+/// Leaderboard score item.
+#[napi(object)]
+pub struct LeaderboardScoreItem {
+    pub leaderboard_id: String,
+    pub score: i64,
+}
+
+/// Request to load leaderboard scores.
+#[napi(object)]
+pub struct LoadScoresRequest {
+    pub leaderboard_id: String,
+    pub collection: u32,
+    pub continuation_token: Option<String>,
+    pub period_token: Option<String>,
+}
+
+/// Request to load the current user's score.
+#[napi(object)]
+pub struct LoadMyScoresRequest {
+    pub leaderboard_id: String,
+    pub collection: u32,
+    pub period_token: Option<String>,
+}
+
+/// Request to load scores near the current user.
+#[napi(object)]
+pub struct LoadMyCenteredScoresRequest {
+    pub leaderboard_id: String,
+    pub collection: u32,
+    pub max_results: u32,
+}
+
+/// Request to open the leaderboards page.
+#[napi(object)]
+pub struct ShowLeaderboardRequest {
+    pub leaderboard_id: String,
+    pub collection: u32,
+}
+
+/// Online game room match parameter.
+#[napi(object)]
+pub struct OnlineGameMatchParam {
+    pub key: String,
+    pub value: String,
+}
+
+/// Online game room configuration.
+#[napi(object)]
+pub struct OnlineGameRoomConfig {
+    pub max_player_count: u32,
+    pub room_type: String,
+    pub match_params: Option<Vec<OnlineGameMatchParam>>,
+    pub name: Option<String>,
+    pub custom_properties: Option<String>,
+}
+
+/// Online game player configuration.
+#[napi(object)]
+pub struct OnlineGamePlayerConfig {
+    pub custom_status: i32,
+    pub custom_properties: Option<String>,
+}
+
+/// Create or match room request.
+#[napi(object)]
+pub struct OnlineGameRoomRequest {
+    pub room: OnlineGameRoomConfig,
+    pub player: OnlineGamePlayerConfig,
+}
+
+/// Get room list request.
+#[napi(object)]
+pub struct OnlineGameGetRoomListRequest {
+    pub room_type: Option<String>,
+    pub offset: Option<u32>,
+    pub limit: Option<u32>,
+}
+
+/// Join room request.
+#[napi(object)]
+pub struct OnlineGameJoinRoomRequest {
+    pub room_id: String,
+    pub player: OnlineGamePlayerConfig,
+}
+
+/// Update room properties request.
+#[napi(object)]
+pub struct OnlineGameUpdateRoomPropertiesRequest {
+    pub name: Option<String>,
+    pub custom_properties: Option<String>,
+}
+
+/// Send custom message request.
+#[napi(object)]
+pub struct OnlineGameSendCustomMessageRequest {
+    pub msg: String,
+    pub receiver_type: u32,
+    pub receivers: Option<Vec<String>>,
 }
 
 /// System state changed event
@@ -359,8 +484,251 @@ fn convert_event_to_json(event: TapEvent) -> serde_json::Result<serde_json::Valu
             achievement: data.achievement.map(AchievementInfo::from),
             platinum_achievement: data.platinum_achievement.map(AchievementInfo::from),
         }),
+        TapEvent::ComplianceEnsureRealName(data) => Ok(json!({
+            "eventId": event_id::COMPLIANCE_ENSURE_REAL_NAME,
+            "requestId": data.request_id,
+            "error": data.error.map(|(code, message)| SdkError { code, message }),
+            "status": data.status,
+        })),
+        TapEvent::ComplianceActionsEvent(data) => Ok(json!({
+            "eventId": event_id::COMPLIANCE_ACTIONS_EVENT,
+            "actions": data.actions.into_iter().map(|action| {
+                json!({
+                    "actionType": action.action_type,
+                    "title": action.title,
+                    "description": action.description,
+                    "displayDurationSeconds": action.display_duration_seconds,
+                })
+            }).collect::<Vec<_>>(),
+        })),
+        TapEvent::LeaderboardSubmitScores(data) => Ok(json!({
+            "eventId": event_id::LEADERBOARD_SUBMIT_SCORES,
+            "requestId": data.request_id,
+            "error": data.error.map(|(code, message)| SdkError { code, message }),
+            "results": data.results.into_iter().map(|result| {
+                json!({
+                    "leaderboardId": result.leaderboard_id,
+                    "periodToken": result.period_token,
+                    "scoreResult": result.score_result.map(|score_result| json!({
+                        "newBest": score_result.new_best,
+                        "rawScore": score_result.raw_score,
+                    })),
+                    "openId": result.open_id,
+                    "unionId": result.union_id,
+                })
+            }).collect::<Vec<_>>(),
+        })),
+        TapEvent::LeaderboardLoadScores(data) => Ok(json!({
+            "eventId": event_id::LEADERBOARD_LOAD_SCORES,
+            "requestId": data.request_id,
+            "error": data.error.map(|(code, message)| SdkError { code, message }),
+            "leaderboard": data.leaderboard.map(leaderboard_info_to_json),
+            "scores": data.scores.into_iter().map(leaderboard_score_to_json).collect::<Vec<_>>(),
+            "continuationToken": data.continuation_token,
+            "isTruncated": data.is_truncated,
+        })),
+        TapEvent::LeaderboardLoadMyScores(data) => Ok(json!({
+            "eventId": event_id::LEADERBOARD_LOAD_MY_SCORES,
+            "requestId": data.request_id,
+            "error": data.error.map(|(code, message)| SdkError { code, message }),
+            "leaderboard": data.leaderboard.map(leaderboard_info_to_json),
+            "score": data.score.map(leaderboard_score_to_json),
+        })),
+        TapEvent::LeaderboardLoadMyCenteredScores(data) => Ok(json!({
+            "eventId": event_id::LEADERBOARD_LOAD_MY_CENTERED_SCORES,
+            "requestId": data.request_id,
+            "error": data.error.map(|(code, message)| SdkError { code, message }),
+            "leaderboard": data.leaderboard.map(leaderboard_info_to_json),
+            "scores": data.scores.into_iter().map(leaderboard_score_to_json).collect::<Vec<_>>(),
+        })),
+        TapEvent::OnlineGame(data) => Ok(json!({
+            "eventId": event_id::ONLINE_GAME_EVENT,
+            "requestId": data.request_id,
+            "error": data.error.map(|(code, message)| SdkError { code, message }),
+            "onlineGameEventId": data.online_game_event_id,
+            "data": online_game_payload_to_json(data.data),
+        })),
         TapEvent::Unknown { event_id: id } => serde_json::to_value(UnknownEvent { event_id: id }),
     }
+}
+
+fn leaderboard_info_to_json(info: tapsdk_pc::callback::LeaderboardInfo) -> serde_json::Value {
+    json!({
+        "id": info.id,
+        "name": info.name,
+        "period": info.period.map(|period| json!({
+            "periodToken": period.period_token,
+            "display": period.display,
+        })),
+        "availablePeriods": info.available_periods.into_iter().map(|period| {
+            json!({
+                "periodToken": period.period_token,
+                "display": period.display,
+            })
+        }).collect::<Vec<_>>(),
+    })
+}
+
+fn leaderboard_score_to_json(score: tapsdk_pc::callback::LeaderboardScore) -> serde_json::Value {
+    json!({
+        "rank": score.rank,
+        "score": score.score,
+        "user": {
+            "openId": score.user.open_id,
+            "unionId": score.user.union_id,
+            "name": score.user.name,
+            "avatar": score.user.avatar,
+        },
+        "scoreSubmittedTime": score.score_submitted_time,
+    })
+}
+
+fn online_game_payload_to_json(
+    payload: tapsdk_pc::callback::OnlineGameEventPayload,
+) -> serde_json::Value {
+    use tapsdk_pc::callback::OnlineGameEventPayload;
+
+    match payload {
+        OnlineGameEventPayload::Empty => json!(null),
+        OnlineGameEventPayload::Connect { player_id } => json!({ "playerId": player_id }),
+        OnlineGameEventPayload::Room { room_info } => {
+            json!({ "roomInfo": online_game_room_info_to_json(room_info) })
+        }
+        OnlineGameEventPayload::RoomList {
+            rooms,
+            offset,
+            has_more,
+        } => json!({
+            "rooms": rooms.into_iter().map(online_game_room_basic_info_to_json).collect::<Vec<_>>(),
+            "offset": offset,
+            "hasMore": has_more,
+        }),
+        OnlineGameEventPayload::PlayerOffline {
+            room_id,
+            room_owner_id,
+            player_id,
+        } => json!({
+            "roomId": room_id,
+            "roomOwnerId": room_owner_id,
+            "playerId": player_id,
+        }),
+        OnlineGameEventPayload::PlayerEnterRoom {
+            room_id,
+            player_info,
+        } => json!({
+            "roomId": room_id,
+            "playerInfo": online_game_player_info_to_json(player_info),
+        }),
+        OnlineGameEventPayload::PlayerLeaveRoom {
+            room_id,
+            room_owner_id,
+            player_id,
+        } => json!({
+            "roomId": room_id,
+            "roomOwnerId": room_owner_id,
+            "playerId": player_id,
+        }),
+        OnlineGameEventPayload::PlayerCustomStatus { player_id, status } => json!({
+            "playerId": player_id,
+            "status": status,
+        }),
+        OnlineGameEventPayload::PlayerCustomProperties {
+            player_id,
+            properties,
+        } => json!({
+            "playerId": player_id,
+            "properties": properties,
+        }),
+        OnlineGameEventPayload::RoomProperties {
+            id,
+            name,
+            custom_properties,
+        } => json!({
+            "id": id,
+            "name": name,
+            "customProperties": custom_properties,
+        }),
+        OnlineGameEventPayload::CustomMessage { player_id, msg } => json!({
+            "playerId": player_id,
+            "msg": msg,
+        }),
+        OnlineGameEventPayload::RoomPlayerKicked { room_id, player_id } => json!({
+            "roomId": room_id,
+            "playerId": player_id,
+        }),
+        OnlineGameEventPayload::FrameSyncStart {
+            room_info,
+            frame_sync_id,
+            seed,
+            server_tms,
+        } => json!({
+            "roomInfo": online_game_room_info_to_json(room_info),
+            "frameSyncId": frame_sync_id,
+            "seed": seed,
+            "serverTms": server_tms,
+        }),
+        OnlineGameEventPayload::Frame { id, inputs } => json!({
+            "id": id,
+            "inputs": inputs.into_iter().map(|input| json!({
+                "playerId": input.player_id,
+                "data": input.data,
+                "serverTms": input.server_tms,
+            })).collect::<Vec<_>>(),
+        }),
+        OnlineGameEventPayload::FrameSyncStop {
+            room_id,
+            frame_sync_id,
+            reason,
+        } => json!({
+            "roomId": room_id,
+            "frameSyncId": frame_sync_id,
+            "reason": reason,
+        }),
+        OnlineGameEventPayload::Unknown => json!({}),
+    }
+}
+
+fn online_game_room_info_to_json(
+    room: tapsdk_pc::callback::OnlineGameRoomInfo,
+) -> serde_json::Value {
+    json!({
+        "id": room.id,
+        "name": room.name,
+        "roomType": room.room_type,
+        "ownerId": room.owner_id,
+        "status": room.status,
+        "customProperties": room.custom_properties,
+        "maxPlayerCount": room.max_player_count,
+        "playerCount": room.player_count,
+        "players": room.players.into_iter().map(online_game_player_info_to_json).collect::<Vec<_>>(),
+        "createTime": room.create_time,
+    })
+}
+
+fn online_game_room_basic_info_to_json(
+    room: tapsdk_pc::callback::OnlineGameRoomBasicInfo,
+) -> serde_json::Value {
+    json!({
+        "id": room.id,
+        "name": room.name,
+        "roomType": room.room_type,
+        "status": room.status,
+        "customProperties": room.custom_properties,
+        "maxPlayerCount": room.max_player_count,
+        "playerCount": room.player_count,
+        "createTime": room.create_time,
+    })
+}
+
+fn online_game_player_info_to_json(
+    player: tapsdk_pc::callback::OnlineGamePlayerInfo,
+) -> serde_json::Value {
+    json!({
+        "id": player.id,
+        "status": player.status,
+        "customStatus": player.custom_status,
+        "customProperties": player.custom_properties,
+    })
 }
 
 /// TapTap PC SDK wrapper for Node.js
@@ -633,6 +1001,397 @@ impl Achievement {
         self.inner
             .show_achievements()
             .map_err(|e| Error::from_reason(e.to_string()))
+    }
+}
+
+/// Compliance API
+#[napi]
+pub struct Compliance {
+    inner: tapsdk_pc::Compliance,
+}
+
+#[napi]
+impl Compliance {
+    /// Get the compliance singleton
+    #[napi(factory)]
+    pub fn get() -> Result<Self> {
+        let inner = tapsdk_pc::Compliance::get()
+            .ok_or_else(|| Error::from_reason("SDK not initialized or Compliance unavailable"))?;
+        Ok(Compliance { inner })
+    }
+
+    /// Ensure the current user has completed real-name verification
+    #[napi(js_name = "ensureRealName")]
+    pub fn ensure_real_name(&self, request_id: i64) -> Result<()> {
+        self.inner
+            .ensure_real_name(request_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Enable anti-addiction checks
+    #[napi(js_name = "enableAntiAddiction")]
+    pub fn enable_anti_addiction(&self) -> Result<()> {
+        self.inner
+            .enable_anti_addiction()
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Check whether a payment amount is allowed
+    #[napi(js_name = "checkPaymentLimit")]
+    pub fn check_payment_limit(&self, amount: u32) -> Result<PaymentLimitResponse> {
+        self.inner
+            .check_payment_limit(amount)
+            .map(|response| PaymentLimitResponse {
+                allow: response.allow,
+                title: response.title,
+                description: response.description,
+            })
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Submit a successful payment amount
+    #[napi(js_name = "submitPayment")]
+    pub fn submit_payment(&self, amount: u32) -> Result<()> {
+        self.inner
+            .submit_payment(amount)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+}
+
+/// Leaderboard API
+#[napi]
+pub struct Leaderboard {
+    inner: tapsdk_pc::Leaderboard,
+}
+
+#[napi]
+impl Leaderboard {
+    /// Get the leaderboard singleton
+    #[napi(factory)]
+    pub fn get() -> Result<Self> {
+        let inner = tapsdk_pc::Leaderboard::get()
+            .ok_or_else(|| Error::from_reason("SDK not initialized or Leaderboard unavailable"))?;
+        Ok(Leaderboard { inner })
+    }
+
+    /// Submit scores to up to five leaderboards
+    #[napi(js_name = "submitScores")]
+    pub fn submit_scores(&self, request_id: i64, items: Vec<LeaderboardScoreItem>) -> Result<()> {
+        let items = items
+            .into_iter()
+            .map(|item| tapsdk_pc::leaderboard::LeaderboardScoreItem {
+                leaderboard_id: item.leaderboard_id,
+                score: item.score,
+            })
+            .collect::<Vec<_>>();
+
+        self.inner
+            .submit_scores(request_id, &items)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Load leaderboard scores
+    #[napi(js_name = "loadScores")]
+    pub fn load_scores(&self, request_id: i64, request: LoadScoresRequest) -> Result<()> {
+        let request = tapsdk_pc::leaderboard::LoadScoresRequest {
+            leaderboard_id: request.leaderboard_id,
+            collection: leaderboard_collection_from_u32(request.collection)?,
+            continuation_token: request.continuation_token,
+            period_token: request.period_token,
+        };
+
+        self.inner
+            .load_scores(request_id, &request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Load the current user's score
+    #[napi(js_name = "loadMyScores")]
+    pub fn load_my_scores(&self, request_id: i64, request: LoadMyScoresRequest) -> Result<()> {
+        let request = tapsdk_pc::leaderboard::LoadMyScoresRequest {
+            leaderboard_id: request.leaderboard_id,
+            collection: leaderboard_collection_from_u32(request.collection)?,
+            period_token: request.period_token,
+        };
+
+        self.inner
+            .load_my_scores(request_id, &request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Load scores near the current user
+    #[napi(js_name = "loadMyCenteredScores")]
+    pub fn load_my_centered_scores(
+        &self,
+        request_id: i64,
+        request: LoadMyCenteredScoresRequest,
+    ) -> Result<()> {
+        let request = tapsdk_pc::leaderboard::LoadMyCenteredScoresRequest {
+            leaderboard_id: request.leaderboard_id,
+            collection: leaderboard_collection_from_u32(request.collection)?,
+            max_results: request.max_results,
+        };
+
+        self.inner
+            .load_my_centered_scores(request_id, &request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Open the TapTap leaderboards page
+    #[napi(js_name = "showLeaderboards")]
+    pub fn show_leaderboards(&self, request: ShowLeaderboardRequest) -> Result<()> {
+        let request = tapsdk_pc::leaderboard::ShowLeaderboardRequest {
+            leaderboard_id: request.leaderboard_id,
+            collection: leaderboard_collection_from_u32(request.collection)?,
+        };
+
+        self.inner
+            .show_leaderboards(&request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+}
+
+/// Online game API
+#[napi]
+pub struct OnlineGame {
+    inner: tapsdk_pc::OnlineGame,
+}
+
+#[napi]
+impl OnlineGame {
+    /// Get the online game singleton
+    #[napi(factory)]
+    pub fn get() -> Result<Self> {
+        let inner = tapsdk_pc::OnlineGame::get()
+            .ok_or_else(|| Error::from_reason("SDK not initialized or OnlineGame unavailable"))?;
+        Ok(OnlineGame { inner })
+    }
+
+    /// Connect to the online game service
+    #[napi]
+    pub fn connect(&self, request_id: i64) -> Result<()> {
+        self.inner
+            .connect(request_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Disconnect from the online game service
+    #[napi]
+    pub fn disconnect(&self, request_id: i64) -> Result<()> {
+        self.inner
+            .disconnect(request_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Create a room
+    #[napi(js_name = "createRoom")]
+    pub fn create_room(&self, request_id: i64, request: OnlineGameRoomRequest) -> Result<()> {
+        let request = room_request_to_create(request)?;
+        self.inner
+            .create_room(request_id, &request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Match or create a room
+    #[napi(js_name = "matchRoom")]
+    pub fn match_room(&self, request_id: i64, request: OnlineGameRoomRequest) -> Result<()> {
+        let request = room_request_to_match(request)?;
+        self.inner
+            .match_room(request_id, &request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Get joinable room list
+    #[napi(js_name = "getRoomList")]
+    pub fn get_room_list(
+        &self,
+        request_id: i64,
+        request: OnlineGameGetRoomListRequest,
+    ) -> Result<()> {
+        let request = tapsdk_pc::onlinegame::GetRoomListRequest {
+            room_type: request.room_type,
+            offset: request.offset.unwrap_or(0),
+            limit: request.limit.unwrap_or(20),
+        };
+
+        self.inner
+            .get_room_list(request_id, &request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Join a room
+    #[napi(js_name = "joinRoom")]
+    pub fn join_room(&self, request_id: i64, request: OnlineGameJoinRoomRequest) -> Result<()> {
+        let request = tapsdk_pc::onlinegame::JoinRoomRequest {
+            room_id: request.room_id,
+            player: player_config_to_rust(request.player),
+        };
+
+        self.inner
+            .join_room(request_id, &request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Leave the current room
+    #[napi(js_name = "leaveRoom")]
+    pub fn leave_room(&self, request_id: i64) -> Result<()> {
+        self.inner
+            .leave_room(request_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Update the current player's custom status
+    #[napi(js_name = "updatePlayerCustomStatus")]
+    pub fn update_player_custom_status(&self, request_id: i64, status: i32) -> Result<()> {
+        self.inner
+            .update_player_custom_status(request_id, status)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Update the current player's custom properties
+    #[napi(js_name = "updatePlayerCustomProperties")]
+    pub fn update_player_custom_properties(
+        &self,
+        request_id: i64,
+        properties: String,
+    ) -> Result<()> {
+        self.inner
+            .update_player_custom_properties(request_id, &properties)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Update the current room's properties
+    #[napi(js_name = "updateRoomProperties")]
+    pub fn update_room_properties(
+        &self,
+        request_id: i64,
+        request: OnlineGameUpdateRoomPropertiesRequest,
+    ) -> Result<()> {
+        let request = tapsdk_pc::onlinegame::UpdateRoomPropertiesRequest {
+            name: request.name,
+            custom_properties: request.custom_properties,
+        };
+
+        self.inner
+            .update_room_properties(request_id, &request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Send a custom message
+    #[napi(js_name = "sendCustomMessage")]
+    pub fn send_custom_message(
+        &self,
+        request_id: i64,
+        request: OnlineGameSendCustomMessageRequest,
+    ) -> Result<()> {
+        let request = tapsdk_pc::onlinegame::SendCustomMessageRequest {
+            msg: request.msg,
+            receiver_type: message_receiver_type_from_u32(request.receiver_type)?,
+            receivers: request.receivers.unwrap_or_default(),
+        };
+
+        self.inner
+            .send_custom_message(request_id, &request)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Kick a player from the current room
+    #[napi(js_name = "kickRoomPlayer")]
+    pub fn kick_room_player(&self, request_id: i64, player_id: String) -> Result<()> {
+        self.inner
+            .kick_room_player(request_id, &player_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Start frame synchronization
+    #[napi(js_name = "startFrameSync")]
+    pub fn start_frame_sync(&self, request_id: i64) -> Result<()> {
+        self.inner
+            .start_frame_sync(request_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Send frame input data
+    #[napi(js_name = "sendFrameInput")]
+    pub fn send_frame_input(&self, request_id: i64, data: String) -> Result<()> {
+        self.inner
+            .send_frame_input(request_id, &data)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Stop frame synchronization
+    #[napi(js_name = "stopFrameSync")]
+    pub fn stop_frame_sync(&self, request_id: i64) -> Result<()> {
+        self.inner
+            .stop_frame_sync(request_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+}
+
+fn leaderboard_collection_from_u32(
+    collection: u32,
+) -> Result<tapsdk_pc::leaderboard::LeaderboardCollection> {
+    match collection {
+        0 => Ok(tapsdk_pc::leaderboard::LeaderboardCollection::Public),
+        1 => Ok(tapsdk_pc::leaderboard::LeaderboardCollection::Friends),
+        _ => Err(Error::from_reason(
+            "collection must be 0 (public) or 1 (friends)",
+        )),
+    }
+}
+
+fn message_receiver_type_from_u32(
+    receiver_type: u32,
+) -> Result<tapsdk_pc::onlinegame::MessageReceiverType> {
+    match receiver_type {
+        0 => Ok(tapsdk_pc::onlinegame::MessageReceiverType::Room),
+        1 => Ok(tapsdk_pc::onlinegame::MessageReceiverType::Players),
+        _ => Err(Error::from_reason(
+            "receiverType must be 0 (room) or 1 (players)",
+        )),
+    }
+}
+
+fn room_request_to_create(
+    request: OnlineGameRoomRequest,
+) -> Result<tapsdk_pc::onlinegame::CreateRoomRequest> {
+    Ok(tapsdk_pc::onlinegame::CreateRoomRequest {
+        room: room_config_to_rust(request.room),
+        player: player_config_to_rust(request.player),
+    })
+}
+
+fn room_request_to_match(
+    request: OnlineGameRoomRequest,
+) -> Result<tapsdk_pc::onlinegame::MatchRoomRequest> {
+    Ok(tapsdk_pc::onlinegame::MatchRoomRequest {
+        room: room_config_to_rust(request.room),
+        player: player_config_to_rust(request.player),
+    })
+}
+
+fn room_config_to_rust(config: OnlineGameRoomConfig) -> tapsdk_pc::onlinegame::RoomConfig {
+    tapsdk_pc::onlinegame::RoomConfig {
+        max_player_count: config.max_player_count,
+        room_type: config.room_type,
+        match_params: config
+            .match_params
+            .unwrap_or_default()
+            .into_iter()
+            .map(|param| tapsdk_pc::onlinegame::MatchParam {
+                key: param.key,
+                value: param.value,
+            })
+            .collect(),
+        name: config.name,
+        custom_properties: config.custom_properties,
+    }
+}
+
+fn player_config_to_rust(config: OnlineGamePlayerConfig) -> tapsdk_pc::onlinegame::PlayerConfig {
+    tapsdk_pc::onlinegame::PlayerConfig {
+        custom_status: config.custom_status,
+        custom_properties: config.custom_properties,
     }
 }
 

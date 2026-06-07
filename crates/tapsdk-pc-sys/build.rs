@@ -37,6 +37,18 @@ fn build_windows() {
         "cargo:rerun-if-changed={}/taptap_cloudsave.h",
         sdk_dir.display()
     );
+    println!(
+        "cargo:rerun-if-changed={}/taptap_compliance.h",
+        sdk_dir.display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}/taptap_leaderboard.h",
+        sdk_dir.display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}/taptap_onlinegame.h",
+        sdk_dir.display()
+    );
 
     // Generate bindings using bindgen
     let bindings = bindgen::Builder::default()
@@ -67,6 +79,9 @@ fn build_windows() {
         .allowlist_function("TapDLC_.*")
         .allowlist_function("TapAchievement.*")
         .allowlist_function("TapCloudSave.*")
+        .allowlist_function("TapCompliance.*")
+        .allowlist_function("TapLeaderboard.*")
+        .allowlist_function("TapOnlineGame.*")
         // Allow all types
         .allowlist_type(".*")
         // Allow all vars (constants)

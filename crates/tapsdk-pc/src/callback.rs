@@ -21,6 +21,13 @@ pub mod event_id {
     pub const CLOUD_SAVE_GET_COVER: u32 = 6006;
     pub const ACHIEVEMENT_UNLOCK: u32 = 7001;
     pub const ACHIEVEMENT_INCREMENT: u32 = 7002;
+    pub const COMPLIANCE_ENSURE_REAL_NAME: u32 = 8001;
+    pub const COMPLIANCE_ACTIONS_EVENT: u32 = 8002;
+    pub const LEADERBOARD_SUBMIT_SCORES: u32 = 9001;
+    pub const LEADERBOARD_LOAD_SCORES: u32 = 9002;
+    pub const LEADERBOARD_LOAD_MY_SCORES: u32 = 9003;
+    pub const LEADERBOARD_LOAD_MY_CENTERED_SCORES: u32 = 9004;
+    pub const ONLINE_GAME_EVENT: u32 = 10001;
 }
 
 /// Authorization token returned after successful authorization
@@ -125,6 +132,239 @@ pub struct AchievementData {
     pub platinum_achievement: Option<AchievementInfo>,
 }
 
+/// Compliance action pushed by anti-addiction checks.
+#[derive(Debug, Clone)]
+pub struct ComplianceAction {
+    pub action_type: u32,
+    pub title: String,
+    pub description: String,
+    pub display_duration_seconds: u32,
+}
+
+/// Compliance real-name response.
+#[derive(Debug, Clone)]
+pub struct ComplianceEnsureRealNameData {
+    pub request_id: i64,
+    pub error: Option<(i64, String)>,
+    pub status: u32,
+}
+
+/// Compliance actions notification.
+#[derive(Debug, Clone)]
+pub struct ComplianceActionsData {
+    pub actions: Vec<ComplianceAction>,
+}
+
+/// Leaderboard period info.
+#[derive(Debug, Clone)]
+pub struct LeaderboardPeriod {
+    pub period_token: String,
+    pub display: String,
+}
+
+/// Leaderboard user info.
+#[derive(Debug, Clone)]
+pub struct LeaderboardUserInfo {
+    pub open_id: String,
+    pub union_id: String,
+    pub name: String,
+    pub avatar: String,
+}
+
+/// Leaderboard score info.
+#[derive(Debug, Clone)]
+pub struct LeaderboardScore {
+    pub rank: u32,
+    pub score: i64,
+    pub user: LeaderboardUserInfo,
+    pub score_submitted_time: u64,
+}
+
+/// Leaderboard info.
+#[derive(Debug, Clone)]
+pub struct LeaderboardInfo {
+    pub id: String,
+    pub name: String,
+    pub period: Option<LeaderboardPeriod>,
+    pub available_periods: Vec<LeaderboardPeriod>,
+}
+
+/// Leaderboard submit score result data.
+#[derive(Debug, Clone)]
+pub struct LeaderboardSubmitScoreResultData {
+    pub new_best: bool,
+    pub raw_score: i64,
+}
+
+/// Leaderboard submit score result.
+#[derive(Debug, Clone)]
+pub struct LeaderboardSubmitScoreResult {
+    pub leaderboard_id: String,
+    pub period_token: String,
+    pub score_result: Option<LeaderboardSubmitScoreResultData>,
+    pub open_id: String,
+    pub union_id: String,
+}
+
+/// Leaderboard submit scores response.
+#[derive(Debug, Clone)]
+pub struct LeaderboardSubmitScoresData {
+    pub request_id: i64,
+    pub error: Option<(i64, String)>,
+    pub results: Vec<LeaderboardSubmitScoreResult>,
+}
+
+/// Leaderboard load scores response.
+#[derive(Debug, Clone)]
+pub struct LeaderboardLoadScoresData {
+    pub request_id: i64,
+    pub error: Option<(i64, String)>,
+    pub leaderboard: Option<LeaderboardInfo>,
+    pub scores: Vec<LeaderboardScore>,
+    pub continuation_token: Option<String>,
+    pub is_truncated: bool,
+}
+
+/// Leaderboard load my scores response.
+#[derive(Debug, Clone)]
+pub struct LeaderboardLoadMyScoresData {
+    pub request_id: i64,
+    pub error: Option<(i64, String)>,
+    pub leaderboard: Option<LeaderboardInfo>,
+    pub score: Option<LeaderboardScore>,
+}
+
+/// Leaderboard load my centered scores response.
+#[derive(Debug, Clone)]
+pub struct LeaderboardLoadMyCenteredScoresData {
+    pub request_id: i64,
+    pub error: Option<(i64, String)>,
+    pub leaderboard: Option<LeaderboardInfo>,
+    pub scores: Vec<LeaderboardScore>,
+}
+
+/// Online game event response or notification.
+#[derive(Debug, Clone)]
+pub struct OnlineGameEventData {
+    pub request_id: i64,
+    pub error: Option<(i64, String)>,
+    pub online_game_event_id: u32,
+    pub data: OnlineGameEventPayload,
+}
+
+/// Online game event payload.
+#[derive(Debug, Clone)]
+pub enum OnlineGameEventPayload {
+    Empty,
+    Connect {
+        player_id: String,
+    },
+    Room {
+        room_info: OnlineGameRoomInfo,
+    },
+    RoomList {
+        rooms: Vec<OnlineGameRoomBasicInfo>,
+        offset: u32,
+        has_more: bool,
+    },
+    PlayerOffline {
+        room_id: String,
+        room_owner_id: String,
+        player_id: String,
+    },
+    PlayerEnterRoom {
+        room_id: String,
+        player_info: OnlineGamePlayerInfo,
+    },
+    PlayerLeaveRoom {
+        room_id: String,
+        room_owner_id: String,
+        player_id: String,
+    },
+    PlayerCustomStatus {
+        player_id: String,
+        status: i32,
+    },
+    PlayerCustomProperties {
+        player_id: String,
+        properties: String,
+    },
+    RoomProperties {
+        id: String,
+        name: String,
+        custom_properties: String,
+    },
+    CustomMessage {
+        player_id: String,
+        msg: String,
+    },
+    RoomPlayerKicked {
+        room_id: String,
+        player_id: String,
+    },
+    FrameSyncStart {
+        room_info: OnlineGameRoomInfo,
+        frame_sync_id: i32,
+        seed: i32,
+        server_tms: i64,
+    },
+    Frame {
+        id: u32,
+        inputs: Vec<OnlineGameFrameInput>,
+    },
+    FrameSyncStop {
+        room_id: String,
+        frame_sync_id: i32,
+        reason: i32,
+    },
+    Unknown,
+}
+
+/// Online game player info.
+#[derive(Debug, Clone)]
+pub struct OnlineGamePlayerInfo {
+    pub id: String,
+    pub status: i32,
+    pub custom_status: i32,
+    pub custom_properties: String,
+}
+
+/// Online game room info.
+#[derive(Debug, Clone)]
+pub struct OnlineGameRoomInfo {
+    pub id: String,
+    pub name: String,
+    pub room_type: String,
+    pub owner_id: String,
+    pub status: i32,
+    pub custom_properties: String,
+    pub max_player_count: u32,
+    pub player_count: u32,
+    pub players: Vec<OnlineGamePlayerInfo>,
+    pub create_time: i64,
+}
+
+/// Online game room basic info.
+#[derive(Debug, Clone)]
+pub struct OnlineGameRoomBasicInfo {
+    pub id: String,
+    pub name: String,
+    pub room_type: String,
+    pub status: i32,
+    pub custom_properties: String,
+    pub max_player_count: u32,
+    pub player_count: u32,
+    pub create_time: i64,
+}
+
+/// Online game frame input.
+#[derive(Debug, Clone)]
+pub struct OnlineGameFrameInput {
+    pub player_id: String,
+    pub data: String,
+    pub server_tms: i64,
+}
+
 /// Events that can be received from the SDK
 #[derive(Debug, Clone)]
 pub enum TapEvent {
@@ -152,6 +392,20 @@ pub enum TapEvent {
     AchievementUnlock(AchievementData),
     /// Achievement increment response
     AchievementIncrement(AchievementData),
+    /// Compliance real-name response
+    ComplianceEnsureRealName(ComplianceEnsureRealNameData),
+    /// Compliance anti-addiction actions notification
+    ComplianceActionsEvent(ComplianceActionsData),
+    /// Leaderboard submit scores response
+    LeaderboardSubmitScores(LeaderboardSubmitScoresData),
+    /// Leaderboard load scores response
+    LeaderboardLoadScores(LeaderboardLoadScoresData),
+    /// Leaderboard load my scores response
+    LeaderboardLoadMyScores(LeaderboardLoadMyScoresData),
+    /// Leaderboard load scores near the current user response
+    LeaderboardLoadMyCenteredScores(LeaderboardLoadMyCenteredScoresData),
+    /// Online game event
+    OnlineGame(OnlineGameEventData),
     /// Unknown event
     Unknown { event_id: u32 },
 }
@@ -191,6 +445,30 @@ pub fn register_callbacks() {
         tapsdk_pc_sys::TapSDK_RegisterCallback(event_id::ACHIEVEMENT_UNLOCK, Some(global_callback));
         tapsdk_pc_sys::TapSDK_RegisterCallback(
             event_id::ACHIEVEMENT_INCREMENT,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::COMPLIANCE_ENSURE_REAL_NAME,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::COMPLIANCE_ACTIONS_EVENT,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::LEADERBOARD_SUBMIT_SCORES,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::LEADERBOARD_LOAD_SCORES,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::LEADERBOARD_LOAD_MY_SCORES,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_RegisterCallback(
+            event_id::LEADERBOARD_LOAD_MY_CENTERED_SCORES,
             Some(global_callback),
         );
     }
@@ -244,6 +522,30 @@ pub fn unregister_callbacks() {
             event_id::ACHIEVEMENT_INCREMENT,
             Some(global_callback),
         );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::COMPLIANCE_ENSURE_REAL_NAME,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::COMPLIANCE_ACTIONS_EVENT,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::LEADERBOARD_SUBMIT_SCORES,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::LEADERBOARD_LOAD_SCORES,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::LEADERBOARD_LOAD_MY_SCORES,
+            Some(global_callback),
+        );
+        tapsdk_pc_sys::TapSDK_UnregisterCallback(
+            event_id::LEADERBOARD_LOAD_MY_CENTERED_SCORES,
+            Some(global_callback),
+        );
     }
 }
 
@@ -255,11 +557,37 @@ pub fn poll_events() -> Vec<TapEvent> {
     // First, run the SDK callbacks to trigger our callback handler
     unsafe {
         tapsdk_pc_sys::TapSDK_RunCallbacks();
+        poll_online_game_events();
     }
 
     // Then drain the event queue
     let mut queue = EVENT_QUEUE.lock().unwrap();
     queue.drain(..).collect()
+}
+
+unsafe fn poll_online_game_events() {
+    if !crate::sdk::is_initialized() {
+        return;
+    }
+
+    let handle = tapsdk_pc_sys::TapOnlineGame();
+    if handle.is_null() {
+        return;
+    }
+
+    let mut left_events = 0u32;
+    loop {
+        tapsdk_pc_sys::TapOnlineGame_RunCallbacks(
+            handle,
+            Some(global_online_game_callback),
+            10,
+            &mut left_events,
+        );
+
+        if left_events == 0 {
+            break;
+        }
+    }
 }
 
 /// Global callback handler called by the SDK
@@ -268,6 +596,18 @@ pub fn poll_events() -> Vec<TapEvent> {
 /// This function is called from C code with raw pointers
 unsafe extern "C" fn global_callback(event_id: u32, data: *mut std::ffi::c_void) {
     let event = parse_event(event_id, data);
+
+    if let Ok(mut queue) = EVENT_QUEUE.lock() {
+        queue.push_back(event);
+    }
+}
+
+/// Global callback handler called by the online game SDK
+///
+/// # Safety
+/// This function is called from C code with raw pointers.
+unsafe extern "C" fn global_online_game_callback(event: *const tapsdk_pc_sys::TapOnlineGameEvent) {
+    let event = parse_online_game_event(event);
 
     if let Ok(mut queue) = EVENT_QUEUE.lock() {
         queue.push_back(event);
@@ -476,6 +816,109 @@ unsafe fn parse_event(event_id: u32, data: *mut std::ffi::c_void) -> TapEvent {
             }
         }
 
+        event_id::COMPLIANCE_ENSURE_REAL_NAME => {
+            if data.is_null() {
+                return TapEvent::Unknown { event_id };
+            }
+
+            let response = &*(data as *const tapsdk_pc_sys::TapComplianceEnsureRealNameResponse);
+            TapEvent::ComplianceEnsureRealName(ComplianceEnsureRealNameData {
+                request_id: response.request_id,
+                error: parse_sdk_error(response.error),
+                status: response.status,
+            })
+        }
+
+        event_id::COMPLIANCE_ACTIONS_EVENT => {
+            if data.is_null() {
+                return TapEvent::Unknown { event_id };
+            }
+
+            let response = &*(data as *const tapsdk_pc_sys::TapComplianceActionsEvent);
+            let actions = if response.actions.is_null() || response.count == 0 {
+                Vec::new()
+            } else {
+                std::slice::from_raw_parts(response.actions, response.count as usize)
+                    .iter()
+                    .map(|action| parse_compliance_action(action))
+                    .collect()
+            };
+
+            TapEvent::ComplianceActionsEvent(ComplianceActionsData { actions })
+        }
+
+        event_id::LEADERBOARD_SUBMIT_SCORES => {
+            if data.is_null() {
+                return TapEvent::Unknown { event_id };
+            }
+
+            let response = &*(data as *const tapsdk_pc_sys::TapLeaderboardSubmitScoresResponse);
+            let results = if response.results.is_null() || response.result_count == 0 {
+                Vec::new()
+            } else {
+                std::slice::from_raw_parts(response.results, response.result_count as usize)
+                    .iter()
+                    .map(|result| parse_leaderboard_submit_score_result(result))
+                    .collect()
+            };
+
+            TapEvent::LeaderboardSubmitScores(LeaderboardSubmitScoresData {
+                request_id: response.request_id,
+                error: parse_sdk_error(response.error),
+                results,
+            })
+        }
+
+        event_id::LEADERBOARD_LOAD_SCORES => {
+            if data.is_null() {
+                return TapEvent::Unknown { event_id };
+            }
+
+            let response = &*(data as *const tapsdk_pc_sys::TapLeaderboardLoadScoresResponse);
+            let scores = parse_leaderboard_scores(response.scores, response.score_count);
+
+            TapEvent::LeaderboardLoadScores(LeaderboardLoadScoresData {
+                request_id: response.request_id,
+                error: parse_sdk_error(response.error),
+                leaderboard: parse_leaderboard_info(response.leaderboard),
+                scores,
+                continuation_token: ptr_to_optional_string(response.continuation_token),
+                is_truncated: response.is_truncated,
+            })
+        }
+
+        event_id::LEADERBOARD_LOAD_MY_SCORES => {
+            if data.is_null() {
+                return TapEvent::Unknown { event_id };
+            }
+
+            let response = &*(data as *const tapsdk_pc_sys::TapLeaderboardLoadMyScoresResponse);
+
+            TapEvent::LeaderboardLoadMyScores(LeaderboardLoadMyScoresData {
+                request_id: response.request_id,
+                error: parse_sdk_error(response.error),
+                leaderboard: parse_leaderboard_info(response.leaderboard),
+                score: parse_leaderboard_score(response.score),
+            })
+        }
+
+        event_id::LEADERBOARD_LOAD_MY_CENTERED_SCORES => {
+            if data.is_null() {
+                return TapEvent::Unknown { event_id };
+            }
+
+            let response =
+                &*(data as *const tapsdk_pc_sys::TapLeaderboardLoadMyCenteredScoresResponse);
+            let scores = parse_leaderboard_scores(response.scores, response.score_count);
+
+            TapEvent::LeaderboardLoadMyCenteredScores(LeaderboardLoadMyCenteredScoresData {
+                request_id: response.request_id,
+                error: parse_sdk_error(response.error),
+                leaderboard: parse_leaderboard_info(response.leaderboard),
+                scores,
+            })
+        }
+
         _ => TapEvent::Unknown { event_id },
     }
 }
@@ -527,6 +970,382 @@ unsafe fn parse_achievement_info(
         current_steps: info.current_steps,
         newly_unlocked: info.newly_unlocked,
     })
+}
+
+unsafe fn parse_compliance_action(action: &tapsdk_pc_sys::TapComplianceAction) -> ComplianceAction {
+    ComplianceAction {
+        action_type: action.action_type,
+        title: ptr_to_string(action.title),
+        description: ptr_to_string(action.description),
+        display_duration_seconds: action.display_duration_seconds,
+    }
+}
+
+unsafe fn parse_leaderboard_period(
+    period: *const tapsdk_pc_sys::TapLeaderboardPeriod,
+) -> Option<LeaderboardPeriod> {
+    if period.is_null() {
+        return None;
+    }
+
+    let period = &*period;
+    Some(LeaderboardPeriod {
+        period_token: ptr_to_string(period.period_token),
+        display: ptr_to_string(period.display),
+    })
+}
+
+unsafe fn parse_leaderboard_info(
+    info: *const tapsdk_pc_sys::TapLeaderboardInfo,
+) -> Option<LeaderboardInfo> {
+    if info.is_null() {
+        return None;
+    }
+
+    let info = &*info;
+    let available_periods = if info.available_periods.is_null() || info.available_period_count == 0
+    {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(info.available_periods, info.available_period_count as usize)
+            .iter()
+            .map(|period| LeaderboardPeriod {
+                period_token: ptr_to_string(period.period_token),
+                display: ptr_to_string(period.display),
+            })
+            .collect()
+    };
+
+    Some(LeaderboardInfo {
+        id: ptr_to_string(info.id),
+        name: ptr_to_string(info.name),
+        period: parse_leaderboard_period(info.period),
+        available_periods,
+    })
+}
+
+unsafe fn parse_leaderboard_score(
+    score: *const tapsdk_pc_sys::TapLeaderboardScore,
+) -> Option<LeaderboardScore> {
+    if score.is_null() {
+        return None;
+    }
+
+    let score = &*score;
+    Some(LeaderboardScore {
+        rank: score.rank,
+        score: score.score,
+        user: LeaderboardUserInfo {
+            open_id: ptr_to_string(score.user.open_id),
+            union_id: ptr_to_string(score.user.union_id),
+            name: ptr_to_string(score.user.name),
+            avatar: ptr_to_string(score.user.avatar),
+        },
+        score_submitted_time: score.score_submitted_time,
+    })
+}
+
+unsafe fn parse_leaderboard_scores(
+    scores: *const tapsdk_pc_sys::TapLeaderboardScore,
+    count: u32,
+) -> Vec<LeaderboardScore> {
+    if scores.is_null() || count == 0 {
+        return Vec::new();
+    }
+
+    std::slice::from_raw_parts(scores, count as usize)
+        .iter()
+        .map(|score| parse_leaderboard_score(score).expect("score pointer from slice is valid"))
+        .collect()
+}
+
+unsafe fn parse_leaderboard_submit_score_result(
+    result: &tapsdk_pc_sys::TapLeaderboardSubmitScoreResult,
+) -> LeaderboardSubmitScoreResult {
+    let score_result = if result.score_result.is_null() {
+        None
+    } else {
+        let score_result = &*result.score_result;
+        Some(LeaderboardSubmitScoreResultData {
+            new_best: score_result.new_best,
+            raw_score: score_result.raw_score,
+        })
+    };
+
+    LeaderboardSubmitScoreResult {
+        leaderboard_id: ptr_to_string(result.leaderboard_id),
+        period_token: ptr_to_string(result.period_token),
+        score_result,
+        open_id: ptr_to_string(result.open_id),
+        union_id: ptr_to_string(result.union_id),
+    }
+}
+
+unsafe fn parse_online_game_event(event: *const tapsdk_pc_sys::TapOnlineGameEvent) -> TapEvent {
+    if event.is_null() {
+        return TapEvent::Unknown {
+            event_id: event_id::ONLINE_GAME_EVENT,
+        };
+    }
+
+    let event = &*event;
+    TapEvent::OnlineGame(OnlineGameEventData {
+        request_id: event.request_id,
+        error: parse_sdk_error(event.error),
+        online_game_event_id: event.event_id,
+        data: parse_online_game_payload(event.event_id, event.event_data),
+    })
+}
+
+unsafe fn parse_online_game_payload(
+    event_id: u32,
+    data: *const std::ffi::c_void,
+) -> OnlineGameEventPayload {
+    if data.is_null() {
+        return OnlineGameEventPayload::Empty;
+    }
+
+    match event_id {
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_ConnectResponse.0 as u32 => {
+            let response = &*(data as *const tapsdk_pc_sys::TapOnlineGameConnectResponse);
+            OnlineGameEventPayload::Connect {
+                player_id: ptr_to_string(response.player_id),
+            }
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_CreateRoomResponse.0 as u32 => {
+            let response = &*(data as *const tapsdk_pc_sys::TapOnlineGameCreateRoomResponse);
+            parse_online_game_room_info(response.room_info)
+                .map(|room_info| OnlineGameEventPayload::Room { room_info })
+                .unwrap_or(OnlineGameEventPayload::Empty)
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_MatchRoomResponse.0 as u32 => {
+            let response = &*(data as *const tapsdk_pc_sys::TapOnlineGameMatchRoomResponse);
+            parse_online_game_room_info(response.room_info)
+                .map(|room_info| OnlineGameEventPayload::Room { room_info })
+                .unwrap_or(OnlineGameEventPayload::Empty)
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_GetRoomListResponse.0 as u32 => {
+            let response = &*(data as *const tapsdk_pc_sys::TapOnlineGameGetRoomListResponse);
+            let rooms = if response.rooms.is_null() || response.room_count == 0 {
+                Vec::new()
+            } else {
+                std::slice::from_raw_parts(response.rooms, response.room_count as usize)
+                    .iter()
+                    .map(|room| parse_online_game_room_basic_info(room))
+                    .collect()
+            };
+
+            OnlineGameEventPayload::RoomList {
+                rooms,
+                offset: response.offset,
+                has_more: response.has_more,
+            }
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_JoinRoomResponse.0 as u32 => {
+            let response = &*(data as *const tapsdk_pc_sys::TapOnlineGameJoinRoomResponse);
+            parse_online_game_room_info(response.room_info)
+                .map(|room_info| OnlineGameEventPayload::Room { room_info })
+                .unwrap_or(OnlineGameEventPayload::Empty)
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_PlayerOfflineNotification.0 as u32 => {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGamePlayerOfflineNotification);
+            OnlineGameEventPayload::PlayerOffline {
+                room_id: ptr_to_string(notification.room_id),
+                room_owner_id: ptr_to_string(notification.room_owner_id),
+                player_id: ptr_to_string(notification.player_id),
+            }
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_EnterRoomNotification.0 as u32 => {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGamePlayerEnterRoomNotification);
+            parse_online_game_player_info(notification.player_info)
+                .map(|player_info| OnlineGameEventPayload::PlayerEnterRoom {
+                    room_id: ptr_to_string(notification.room_id),
+                    player_info,
+                })
+                .unwrap_or(OnlineGameEventPayload::Empty)
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_LeaveRoomNotification.0 as u32 => {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGamePlayerLeaveRoomNotification);
+            OnlineGameEventPayload::PlayerLeaveRoom {
+                room_id: ptr_to_string(notification.room_id),
+                room_owner_id: ptr_to_string(notification.room_owner_id),
+                player_id: ptr_to_string(notification.player_id),
+            }
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_PlayerCustomStatusNotification.0 as u32 => {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGamePlayerCustomStatusNotification);
+            OnlineGameEventPayload::PlayerCustomStatus {
+                player_id: ptr_to_string(notification.player_id),
+                status: notification.status,
+            }
+        }
+        id if id
+            == tapsdk_pc_sys::TapOnlineGameEventID_PlayerCustomPropertiesNotification.0 as u32 =>
+        {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGamePlayerCustomPropertiesNotification);
+            OnlineGameEventPayload::PlayerCustomProperties {
+                player_id: ptr_to_string(notification.player_id),
+                properties: ptr_to_string(notification.properties),
+            }
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_RoomPropertiesNotification.0 as u32 => {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGameRoomPropertiesNotification);
+            OnlineGameEventPayload::RoomProperties {
+                id: ptr_to_string(notification.id),
+                name: ptr_to_string(notification.name),
+                custom_properties: ptr_to_string(notification.custom_properties),
+            }
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_CustomMessageNotification.0 as u32 => {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGameCustomMessageNotification);
+            OnlineGameEventPayload::CustomMessage {
+                player_id: ptr_to_string(notification.player_id),
+                msg: ptr_to_string(notification.msg),
+            }
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_RoomPlayerKickedNotification.0 as u32 => {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGameRoomPlayerKickedNotification);
+            OnlineGameEventPayload::RoomPlayerKicked {
+                room_id: ptr_to_string(notification.room_id),
+                player_id: ptr_to_string(notification.player_id),
+            }
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_FrameSyncStartNotification.0 as u32 => {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGameFrameSyncStartNotification);
+            parse_online_game_room_info(notification.room_info)
+                .map(|room_info| OnlineGameEventPayload::FrameSyncStart {
+                    room_info,
+                    frame_sync_id: notification.frame_sync_id,
+                    seed: notification.seed,
+                    server_tms: notification.server_tms,
+                })
+                .unwrap_or(OnlineGameEventPayload::Empty)
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_FrameNotification.0 as u32 => {
+            let frame = &*(data as *const tapsdk_pc_sys::TapOnlineGameFrame);
+            let inputs = if frame.inputs.is_null() || frame.input_count == 0 {
+                Vec::new()
+            } else {
+                std::slice::from_raw_parts(frame.inputs, frame.input_count as usize)
+                    .iter()
+                    .map(|input| parse_online_game_frame_input(input))
+                    .collect()
+            };
+
+            OnlineGameEventPayload::Frame {
+                id: frame.id,
+                inputs,
+            }
+        }
+        id if id == tapsdk_pc_sys::TapOnlineGameEventID_FrameSyncStopNotification.0 as u32 => {
+            let notification =
+                &*(data as *const tapsdk_pc_sys::TapOnlineGameFrameSyncStopNotification);
+            OnlineGameEventPayload::FrameSyncStop {
+                room_id: ptr_to_string(notification.room_id),
+                frame_sync_id: notification.frame_sync_id,
+                reason: notification.reason,
+            }
+        }
+        _ => OnlineGameEventPayload::Unknown,
+    }
+}
+
+unsafe fn parse_online_game_player_info(
+    player: *const tapsdk_pc_sys::TapOnlineGamePlayerInfo,
+) -> Option<OnlineGamePlayerInfo> {
+    if player.is_null() {
+        return None;
+    }
+
+    let player = &*player;
+    Some(OnlineGamePlayerInfo {
+        id: ptr_to_string(player.id),
+        status: player.status,
+        custom_status: player.custom_status,
+        custom_properties: ptr_to_string(player.custom_properties),
+    })
+}
+
+unsafe fn parse_online_game_room_info(
+    room: *const tapsdk_pc_sys::TapOnlineGameRoomInfo,
+) -> Option<OnlineGameRoomInfo> {
+    if room.is_null() {
+        return None;
+    }
+
+    let room = &*room;
+    let players = if room.players.is_null() || room.player_count == 0 {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(room.players, room.player_count as usize)
+            .iter()
+            .map(|player| OnlineGamePlayerInfo {
+                id: ptr_to_string(player.id),
+                status: player.status,
+                custom_status: player.custom_status,
+                custom_properties: ptr_to_string(player.custom_properties),
+            })
+            .collect()
+    };
+
+    Some(OnlineGameRoomInfo {
+        id: ptr_to_string(room.id),
+        name: ptr_to_string(room.name),
+        room_type: ptr_to_string(room.room_type),
+        owner_id: ptr_to_string(room.owner_id),
+        status: room.status,
+        custom_properties: ptr_to_string(room.custom_properties),
+        max_player_count: room.max_player_count,
+        player_count: room.player_count,
+        players,
+        create_time: room.create_time,
+    })
+}
+
+unsafe fn parse_online_game_room_basic_info(
+    room: &tapsdk_pc_sys::TapOnlineGameRoomBasicInfo,
+) -> OnlineGameRoomBasicInfo {
+    OnlineGameRoomBasicInfo {
+        id: ptr_to_string(room.id),
+        name: ptr_to_string(room.name),
+        room_type: ptr_to_string(room.room_type),
+        status: room.status,
+        custom_properties: ptr_to_string(room.custom_properties),
+        max_player_count: room.max_player_count,
+        player_count: room.player_count,
+        create_time: room.create_time,
+    }
+}
+
+unsafe fn parse_online_game_frame_input(
+    input: &tapsdk_pc_sys::TapOnlineGameFrameInput,
+) -> OnlineGameFrameInput {
+    OnlineGameFrameInput {
+        player_id: ptr_to_string(input.player_id),
+        data: ptr_to_string(input.data),
+        server_tms: input.server_tms,
+    }
+}
+
+/// Convert a fixed C char array to a Rust String.
+///
+/// # Safety
+/// The char array must be valid memory and contain a NUL terminator or UTF-8 bytes.
+pub unsafe fn fixed_c_char_array_to_string<const N: usize>(
+    chars: &[std::os::raw::c_char; N],
+) -> String {
+    CStr::from_ptr(chars.as_ptr())
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Convert a C string pointer to a Rust String
