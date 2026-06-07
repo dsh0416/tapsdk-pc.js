@@ -8,7 +8,7 @@ repository = "https://github.com/dsh0416/tapsdk-pc.js"
 homepage = "https://dsh0416.github.io/tapsdk-pc.js/"
 documentation = "https://docs.rs/tapsdk-pc-sys"
 links = "taptap_api"
-include = ["src/**/*", "sdk/**/*", "build.rs", "wrapper.h"]
+include = ["src/**/*", "sdk/**/*", "build.rs", "stub_bindings.rs", "wrapper.h"]
 
 [package.metadata.tapsdk]
 upstream-version = "4.3.0"
