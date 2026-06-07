@@ -12,7 +12,7 @@ pub type TapSDK_Result = u32;
 
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct TapOnlineGameEventID(pub u32);
+pub struct TapOnlineGameEventID(pub i32);
 
 pub const TapOnlineGameEventID_Unknown: TapOnlineGameEventID = TapOnlineGameEventID(0);
 pub const TapOnlineGameEventID_ConnectResponse: TapOnlineGameEventID = TapOnlineGameEventID(1);
