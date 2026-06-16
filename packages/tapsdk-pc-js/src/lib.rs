@@ -12,12 +12,19 @@ use serde::Serialize;
 use serde_json::json;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::Duration;
 
 use tapsdk_pc::callback::AchievementInfo as RustAchievementInfo;
 use tapsdk_pc::callback::CloudSaveInfo as RustCloudSaveInfo;
 use tapsdk_pc::callback::TapEvent;
 use tapsdk_pc::error::SystemState;
+
+const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+type SdkJob = Box<dyn FnOnce(&tapsdk_pc::TapSdk) + Send + 'static>;
+
+static SDK_THREAD: Mutex<Option<mpsc::Sender<SdkJob>>> = Mutex::new(None);
 
 #[napi]
 pub mod event_id {
@@ -613,15 +620,44 @@ fn online_game_player_info_to_json(
     })
 }
 
+fn run_sdk_jobs(receiver: &mpsc::Receiver<SdkJob>, sdk: &tapsdk_pc::TapSdk) {
+    while let Ok(job) = receiver.try_recv() {
+        job(sdk);
+    }
+}
+
+fn run_on_sdk_thread<T, F>(operation: F) -> Result<T>
+where
+    T: Send + 'static,
+    F: FnOnce(&tapsdk_pc::TapSdk) -> Result<T> + Send + 'static,
+{
+    let sender = SDK_THREAD
+        .lock()
+        .map_err(|_| Error::from_reason("SDK thread lock poisoned"))?
+        .clone()
+        .ok_or_else(|| Error::from_reason("SDK not initialized"))?;
+    let (response_tx, response_rx) = mpsc::channel();
+
+    sender
+        .send(Box::new(move |sdk| {
+            let _ = response_tx.send(operation(sdk));
+        }))
+        .map_err(|_| Error::from_reason("SDK thread stopped"))?;
+
+    response_rx
+        .recv()
+        .map_err(|_| Error::from_reason("SDK thread stopped"))?
+}
+
 /// TapTap PC SDK wrapper for Node.js
 ///
 /// Events are automatically pushed to the provided callback via a background
 /// polling thread. There is no need to call `runCallbacks()` manually.
 #[napi]
 pub struct TapSdk {
-    inner: Option<tapsdk_pc::TapSdk>,
     running: Arc<AtomicBool>,
     handle: Option<std::thread::JoinHandle<()>>,
+    sender: mpsc::Sender<SdkJob>,
 }
 
 #[napi]
@@ -643,50 +679,79 @@ impl TapSdk {
         ts_args_type = "pubKey: string, callback: (event: any) => void"
     )]
     pub fn new(pub_key: String, callback: Function<'_, serde_json::Value, ()>) -> Result<Self> {
-        let inner =
-            tapsdk_pc::TapSdk::init(&pub_key).map_err(|e| Error::from_reason(e.to_string()))?;
-
         // Create a threadsafe function from the JS callback so we can call it
-        // from the background thread.
+        // from the SDK thread.
         let tsfn = callback.build_threadsafe_function().build()?;
-
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
+        let (command_tx, command_rx) = mpsc::channel::<SdkJob>();
+        let (init_tx, init_rx) = mpsc::channel();
 
-        // Spawn a background thread with a tokio runtime that periodically
-        // polls the C SDK for events and pushes them to JavaScript.
+        let mut sdk_thread = SDK_THREAD
+            .lock()
+            .map_err(|_| Error::from_reason("SDK thread lock poisoned"))?;
+        if sdk_thread.is_some() {
+            return Err(Error::from_reason("SDK already initialized"));
+        }
+
+        // The TapTap PC SDK requires init, API calls, callbacks, and shutdown
+        // to happen on the same thread, so this thread owns all SDK access.
         let handle = std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_time()
-                .build()
-                .expect("Failed to create tokio runtime for event loop");
+            let sdk = match tapsdk_pc::TapSdk::init(&pub_key) {
+                Ok(sdk) => {
+                    let _ = init_tx.send(Ok(()));
+                    sdk
+                }
+                Err(error) => {
+                    let _ = init_tx.send(Err(error.to_string()));
+                    return;
+                }
+            };
 
-            rt.block_on(async {
-                let mut interval = tokio::time::interval(std::time::Duration::from_millis(50));
-
-                while running_clone.load(Ordering::Relaxed) {
-                    interval.tick().await;
-                    let events = tapsdk_pc::callback::poll_events();
-                    for event in events {
-                        if let Ok(js_event) = convert_event_to_json(event) {
-                            tsfn.call(js_event, ThreadsafeFunctionCallMode::NonBlocking);
-                        }
+            while running_clone.load(Ordering::Relaxed) {
+                run_sdk_jobs(&command_rx, &sdk);
+                for event in sdk.run_callbacks() {
+                    if let Ok(js_event) = convert_event_to_json(event) {
+                        tsfn.call(js_event, ThreadsafeFunctionCallMode::NonBlocking);
                     }
                 }
-            });
+
+                match command_rx.recv_timeout(EVENT_POLL_INTERVAL) {
+                    Ok(job) => job(&sdk),
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                }
+            }
         });
 
+        match init_rx
+            .recv()
+            .map_err(|_| Error::from_reason("SDK thread stopped during initialization"))?
+        {
+            Ok(()) => {
+                *sdk_thread = Some(command_tx.clone());
+            }
+            Err(message) => {
+                running.store(false, Ordering::Relaxed);
+                let _ = command_tx.send(Box::new(|_| {}));
+                let _ = handle.join();
+                return Err(Error::from_reason(message));
+            }
+        }
+
         Ok(TapSdk {
-            inner: Some(inner),
             running,
             handle: Some(handle),
+            sender: command_tx,
         })
     }
 
     /// Get the client ID
     #[napi]
     pub fn get_client_id(&self) -> Option<String> {
-        self.inner.as_ref()?.get_client_id()
+        run_on_sdk_thread(|sdk| Ok(sdk.get_client_id()))
+            .ok()
+            .flatten()
     }
 
     /// Check if the SDK is initialized
@@ -698,66 +763,64 @@ impl TapSdk {
     /// Request user authorization
     #[napi]
     pub fn authorize(&self, scopes: String) -> Result<()> {
-        tapsdk_pc::user::authorize(&scopes).map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            tapsdk_pc::user::authorize(&scopes).map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Get the current user's OpenID
     #[napi]
     pub fn get_open_id(&self) -> Option<String> {
-        tapsdk_pc::user::get_open_id()
+        run_on_sdk_thread(|_| Ok(tapsdk_pc::user::get_open_id()))
+            .ok()
+            .flatten()
     }
 
     /// Check if the user owns the current game
     #[napi]
     pub fn is_game_owned(&self) -> bool {
-        tapsdk_pc::ownership::is_game_owned()
+        run_on_sdk_thread(|_| Ok(tapsdk_pc::ownership::is_game_owned())).unwrap_or(false)
     }
 
     /// Check if the user owns a specific DLC
     #[napi]
     pub fn is_dlc_owned(&self, dlc_id: String) -> bool {
-        tapsdk_pc::dlc::is_dlc_owned(&dlc_id)
+        run_on_sdk_thread(move |_| Ok(tapsdk_pc::dlc::is_dlc_owned(&dlc_id))).unwrap_or(false)
     }
 
     /// Show the store page for a specific DLC
     #[napi]
     pub fn show_dlc_store(&self, dlc_id: String) -> Result<bool> {
-        tapsdk_pc::dlc::show_dlc_store(&dlc_id).map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            tapsdk_pc::dlc::show_dlc_store(&dlc_id).map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Shut down the SDK and stop the background event loop.
     #[napi]
     pub fn shutdown(&mut self) {
-        // Signal the background thread to stop
         self.running.store(false, Ordering::Relaxed);
-
-        // Wait for the background thread to finish
+        let _ = self.sender.send(Box::new(|_| {}));
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
         }
 
-        // Shut down the underlying SDK
-        if let Some(inner) = self.inner.take() {
-            inner.shutdown();
+        if let Ok(mut sdk_thread) = SDK_THREAD.lock() {
+            *sdk_thread = None;
         }
     }
 }
 
 impl Drop for TapSdk {
     fn drop(&mut self) {
-        // Ensure the background thread is stopped if shutdown() wasn't called
-        self.running.store(false, Ordering::Relaxed);
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
-        }
-        // inner's Drop will handle TapSDK_Shutdown() if not already taken
+        self.shutdown();
     }
 }
 
 /// Cloud save API
 #[napi]
 pub struct CloudSave {
-    inner: tapsdk_pc::CloudSave,
+    _private: (),
 }
 
 #[napi]
@@ -765,17 +828,24 @@ impl CloudSave {
     /// Get the cloud save singleton
     #[napi(factory)]
     pub fn get() -> Result<Self> {
-        let inner = tapsdk_pc::CloudSave::get()
-            .ok_or_else(|| Error::from_reason("SDK not initialized or CloudSave unavailable"))?;
-        Ok(CloudSave { inner })
+        run_on_sdk_thread(|_| {
+            tapsdk_pc::CloudSave::get()
+                .map(|_| CloudSave { _private: () })
+                .ok_or_else(|| Error::from_reason("SDK not initialized or CloudSave unavailable"))
+        })
     }
 
     /// Request the list of cloud saves
     #[napi]
     pub fn list(&self, request_id: i64) -> Result<()> {
-        self.inner
-            .list(request_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let cloud_save = tapsdk_pc::CloudSave::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or CloudSave unavailable")
+            })?;
+            cloud_save
+                .list(request_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Create a new cloud save
@@ -792,9 +862,14 @@ impl CloudSave {
                 .map(|p| PathBuf::from(p).into_boxed_path()),
         };
 
-        self.inner
-            .create(request_id, &rust_request)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let cloud_save = tapsdk_pc::CloudSave::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or CloudSave unavailable")
+            })?;
+            cloud_save
+                .create(request_id, &rust_request)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Update an existing cloud save
@@ -812,40 +887,60 @@ impl CloudSave {
                 .map(|p| PathBuf::from(p).into_boxed_path()),
         };
 
-        self.inner
-            .update(request_id, &rust_request)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let cloud_save = tapsdk_pc::CloudSave::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or CloudSave unavailable")
+            })?;
+            cloud_save
+                .update(request_id, &rust_request)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Delete a cloud save
     #[napi]
     pub fn delete(&self, request_id: i64, uuid: String) -> Result<()> {
-        self.inner
-            .delete(request_id, &uuid)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let cloud_save = tapsdk_pc::CloudSave::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or CloudSave unavailable")
+            })?;
+            cloud_save
+                .delete(request_id, &uuid)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Get the data file for a cloud save
     #[napi]
     pub fn get_data(&self, request_id: i64, uuid: String, file_id: String) -> Result<()> {
-        self.inner
-            .get_data(request_id, &uuid, &file_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let cloud_save = tapsdk_pc::CloudSave::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or CloudSave unavailable")
+            })?;
+            cloud_save
+                .get_data(request_id, &uuid, &file_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Get the cover image for a cloud save
     #[napi]
     pub fn get_cover(&self, request_id: i64, uuid: String, file_id: String) -> Result<()> {
-        self.inner
-            .get_cover(request_id, &uuid, &file_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let cloud_save = tapsdk_pc::CloudSave::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or CloudSave unavailable")
+            })?;
+            cloud_save
+                .get_cover(request_id, &uuid, &file_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 }
 
 /// Achievement API
 #[napi]
 pub struct Achievement {
-    inner: tapsdk_pc::Achievement,
+    _private: (),
 }
 
 #[napi]
@@ -853,17 +948,24 @@ impl Achievement {
     /// Get the achievement singleton
     #[napi(factory)]
     pub fn get() -> Result<Self> {
-        let inner = tapsdk_pc::Achievement::get()
-            .ok_or_else(|| Error::from_reason("SDK not initialized or Achievement unavailable"))?;
-        Ok(Achievement { inner })
+        run_on_sdk_thread(|_| {
+            tapsdk_pc::Achievement::get()
+                .map(|_| Achievement { _private: () })
+                .ok_or_else(|| Error::from_reason("SDK not initialized or Achievement unavailable"))
+        })
     }
 
     /// Unlock an achievement
     #[napi]
     pub fn unlock(&self, request_id: i64, achievement_id: String) -> Result<()> {
-        self.inner
-            .unlock(request_id, &achievement_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let achievement = tapsdk_pc::Achievement::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or Achievement unavailable")
+            })?;
+            achievement
+                .unlock(request_id, &achievement_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Increment progress for a step-based achievement
@@ -872,24 +974,34 @@ impl Achievement {
         let steps = u64::try_from(steps)
             .map_err(|_| Error::from_reason("steps must be a non-negative integer"))?;
 
-        self.inner
-            .increment(request_id, &achievement_id, steps)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let achievement = tapsdk_pc::Achievement::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or Achievement unavailable")
+            })?;
+            achievement
+                .increment(request_id, &achievement_id, steps)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Open the TapTap achievements page
     #[napi(js_name = "showAchievements")]
     pub fn show_achievements(&self) -> Result<()> {
-        self.inner
-            .show_achievements()
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let achievement = tapsdk_pc::Achievement::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or Achievement unavailable")
+            })?;
+            achievement
+                .show_achievements()
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 }
 
 /// Compliance API
 #[napi]
 pub struct Compliance {
-    inner: tapsdk_pc::Compliance,
+    _private: (),
 }
 
 #[napi]
@@ -897,53 +1009,75 @@ impl Compliance {
     /// Get the compliance singleton
     #[napi(factory)]
     pub fn get() -> Result<Self> {
-        let inner = tapsdk_pc::Compliance::get()
-            .ok_or_else(|| Error::from_reason("SDK not initialized or Compliance unavailable"))?;
-        Ok(Compliance { inner })
+        run_on_sdk_thread(|_| {
+            tapsdk_pc::Compliance::get()
+                .map(|_| Compliance { _private: () })
+                .ok_or_else(|| Error::from_reason("SDK not initialized or Compliance unavailable"))
+        })
     }
 
     /// Ensure the current user has completed real-name verification
     #[napi(js_name = "ensureRealName")]
     pub fn ensure_real_name(&self, request_id: i64) -> Result<()> {
-        self.inner
-            .ensure_real_name(request_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let compliance = tapsdk_pc::Compliance::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or Compliance unavailable")
+            })?;
+            compliance
+                .ensure_real_name(request_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Enable anti-addiction checks
     #[napi(js_name = "enableAntiAddiction")]
     pub fn enable_anti_addiction(&self) -> Result<()> {
-        self.inner
-            .enable_anti_addiction()
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let compliance = tapsdk_pc::Compliance::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or Compliance unavailable")
+            })?;
+            compliance
+                .enable_anti_addiction()
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Check whether a payment amount is allowed
     #[napi(js_name = "checkPaymentLimit")]
     pub fn check_payment_limit(&self, amount: u32) -> Result<PaymentLimitResponse> {
-        self.inner
-            .check_payment_limit(amount)
-            .map(|response| PaymentLimitResponse {
-                allow: response.allow,
-                title: response.title,
-                description: response.description,
-            })
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let compliance = tapsdk_pc::Compliance::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or Compliance unavailable")
+            })?;
+            compliance
+                .check_payment_limit(amount)
+                .map(|response| PaymentLimitResponse {
+                    allow: response.allow,
+                    title: response.title,
+                    description: response.description,
+                })
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Submit a successful payment amount
     #[napi(js_name = "submitPayment")]
     pub fn submit_payment(&self, amount: u32) -> Result<()> {
-        self.inner
-            .submit_payment(amount)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let compliance = tapsdk_pc::Compliance::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or Compliance unavailable")
+            })?;
+            compliance
+                .submit_payment(amount)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 }
 
 /// Online game API
 #[napi]
 pub struct OnlineGame {
-    inner: tapsdk_pc::OnlineGame,
+    _private: (),
 }
 
 #[napi]
@@ -951,43 +1085,65 @@ impl OnlineGame {
     /// Get the online game singleton
     #[napi(factory)]
     pub fn get() -> Result<Self> {
-        let inner = tapsdk_pc::OnlineGame::get()
-            .ok_or_else(|| Error::from_reason("SDK not initialized or OnlineGame unavailable"))?;
-        Ok(OnlineGame { inner })
+        run_on_sdk_thread(|_| {
+            tapsdk_pc::OnlineGame::get()
+                .map(|_| OnlineGame { _private: () })
+                .ok_or_else(|| Error::from_reason("SDK not initialized or OnlineGame unavailable"))
+        })
     }
 
     /// Connect to the online game service
     #[napi]
     pub fn connect(&self, request_id: i64) -> Result<()> {
-        self.inner
-            .connect(request_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .connect(request_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Disconnect from the online game service
     #[napi]
     pub fn disconnect(&self, request_id: i64) -> Result<()> {
-        self.inner
-            .disconnect(request_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .disconnect(request_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Create a room
     #[napi(js_name = "createRoom")]
     pub fn create_room(&self, request_id: i64, request: OnlineGameRoomRequest) -> Result<()> {
         let request = room_request_to_create(request)?;
-        self.inner
-            .create_room(request_id, &request)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .create_room(request_id, &request)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Match or create a room
     #[napi(js_name = "matchRoom")]
     pub fn match_room(&self, request_id: i64, request: OnlineGameRoomRequest) -> Result<()> {
         let request = room_request_to_match(request)?;
-        self.inner
-            .match_room(request_id, &request)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .match_room(request_id, &request)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Get joinable room list
@@ -1003,9 +1159,14 @@ impl OnlineGame {
             limit: request.limit.unwrap_or(20),
         };
 
-        self.inner
-            .get_room_list(request_id, &request)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .get_room_list(request_id, &request)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Join a room
@@ -1016,25 +1177,40 @@ impl OnlineGame {
             player: player_config_to_rust(request.player),
         };
 
-        self.inner
-            .join_room(request_id, &request)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .join_room(request_id, &request)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Leave the current room
     #[napi(js_name = "leaveRoom")]
     pub fn leave_room(&self, request_id: i64) -> Result<()> {
-        self.inner
-            .leave_room(request_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .leave_room(request_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Update the current player's custom status
     #[napi(js_name = "updatePlayerCustomStatus")]
     pub fn update_player_custom_status(&self, request_id: i64, status: i32) -> Result<()> {
-        self.inner
-            .update_player_custom_status(request_id, status)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .update_player_custom_status(request_id, status)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Update the current player's custom properties
@@ -1044,9 +1220,14 @@ impl OnlineGame {
         request_id: i64,
         properties: String,
     ) -> Result<()> {
-        self.inner
-            .update_player_custom_properties(request_id, &properties)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .update_player_custom_properties(request_id, &properties)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Update the current room's properties
@@ -1061,9 +1242,14 @@ impl OnlineGame {
             custom_properties: request.custom_properties,
         };
 
-        self.inner
-            .update_room_properties(request_id, &request)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .update_room_properties(request_id, &request)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Send a custom message
@@ -1079,41 +1265,66 @@ impl OnlineGame {
             receivers: request.receivers.unwrap_or_default(),
         };
 
-        self.inner
-            .send_custom_message(request_id, &request)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .send_custom_message(request_id, &request)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Kick a player from the current room
     #[napi(js_name = "kickRoomPlayer")]
     pub fn kick_room_player(&self, request_id: i64, player_id: String) -> Result<()> {
-        self.inner
-            .kick_room_player(request_id, &player_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .kick_room_player(request_id, &player_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Start frame synchronization
     #[napi(js_name = "startFrameSync")]
     pub fn start_frame_sync(&self, request_id: i64) -> Result<()> {
-        self.inner
-            .start_frame_sync(request_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .start_frame_sync(request_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Send frame input data
     #[napi(js_name = "sendFrameInput")]
     pub fn send_frame_input(&self, request_id: i64, data: String) -> Result<()> {
-        self.inner
-            .send_frame_input(request_id, &data)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .send_frame_input(request_id, &data)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 
     /// Stop frame synchronization
     #[napi(js_name = "stopFrameSync")]
     pub fn stop_frame_sync(&self, request_id: i64) -> Result<()> {
-        self.inner
-            .stop_frame_sync(request_id)
-            .map_err(|e| Error::from_reason(e.to_string()))
+        run_on_sdk_thread(move |_| {
+            let online_game = tapsdk_pc::OnlineGame::get().ok_or_else(|| {
+                Error::from_reason("SDK not initialized or OnlineGame unavailable")
+            })?;
+            online_game
+                .stop_frame_sync(request_id)
+                .map_err(|e| Error::from_reason(e.to_string()))
+        })
     }
 }
 
